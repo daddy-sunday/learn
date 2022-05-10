@@ -1,0 +1,1261 @@
+1.data-platform项目的 scurity 的  organizations接口的实现
+2.orc和parquet列式存储格式的比较
+3.开发个人工作台 和 审批流程
+4.协助大榭做数据导入和性能优化
+5.开发缓存服务服务端
+6.技术支持：
+	宁城：csv导入文件失败，检查发现hive连接串配置问题。给运维人员提供修改方法
+	贵州水文项目：反馈定时调度一直失败，检查发现141节点所有底座服务组件没有启动，编写启动文档发给 张旭 执行
+	宁城：处理presto不能访问hive数据问题。临时修改了链接不使用presto，只是用hive。
+	贵州水文项目：不能删除数据表，磁盘空间满了，导致所有增删改不可用。
+	南宁项目：库表导出不可用,编码乱码问题。（指定url链接时 设置utf-8，不乱码） datax不能链接数据库，presto读取不到hive数据。
+7.编写namespace_tables添加段，后来该方案，只提交了部分代码
+8.编写数据大屏假数据
+数据支持
+9.编写数据大屏真实数据
+
+
+eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiIwZGQyYjI5Mi05ZmMyLTExZWEtYmIzNy0wMjQyYWMxMzAwMDIiLCJ0ZW5hbnRJZCI6ImZhZDAwNTk2LTlmYzEtMTFlYS1iYjM3LTAyNDJhYzEzMDAwMiIsImV4cGlyZWQiOiIyMDIxLTAzLTA4IDE2OjU0OjMxIiwiZXhwIjoxNjE1MTkzNjcxfQ.8Ohwxqe0T7i2-7N1he0h0QrFV1IwbghmUI9Yivh2GrAv9IFV6WoykAjYKGuPv0drZisidyF_zxaM2Hr-rl08HQ
+user6
+eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiJmMjdkMmJiMi0zYzlhLTRlYzEtYjM1OS0xY2RhZTI1NDIwMDUiLCJ0ZW5hbnRJZCI6IjVmNTdjNmQ3LWI2ZjUtNDI2Mi05YmFkLWI3YWQzOTVkZjEzNSIsImV4cGlyZWQiOiIyMDIxLTAzLTA1IDE1OjQwOjIzIiwiZXhwIjoxNjE0OTMwMDIzfQ.-_Ogvo6DymXWf6fwW1uzvCvWlrCokCvcsGbNXMvADK6ye0r4QMQjcgWG6qfZmT4Fc8SuwfKoO-FtnO0r9XaBJQ
+超级用户
+eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiIwZGQyYjI5Mi05ZmMyLTExZWEtYmIzNy0wMjQyYWMxMzAwMDIiLCJ0ZW5hbnRJZCI6ImZhZDAwNTk2LTlmYzEtMTFlYS1iYjM3LTAyNDJhYzEzMDAwMiIsImV4cGlyZWQiOiIyMDIxLTAzLTA1IDIwOjQ2OjQyIiwiZXhwIjoxNjE0OTQ4NDAyfQ.jUjU7_sWIoW1nPPUuREmyuz5F24Ue880aFLl1Mbzo8_WqQo8NluWr0sV_y6XXIc_fZ9AQKVi4-xtDQPWObB7XQ
+
+审批用户id
+0dd2b292-9fc2-11ea-bb37-0242ac130002
+组织id
+18591d40-aef4-490f-97d2-25716c600000
+
+{"applicationName":"admin","approvalName":"admin","applicationOrganizationName":"测试组织","applicationOrganizationId":"18591d40-aef4-490f-97d2-25716c600000","type":"TABLE","resourceName":"student","applicationMsg":"我试试","approvalTime":1614754049818}
+{"applicationName":"admin","approvalName":"admin","applicationOrganizationName":"测试组织","applicationOrganizationId":"18591d40-aef4-490f-97d2-25716c600000","type":"TABLE","resourceName":"student","applicationMsg":"我试试","approvalTime":1614754049818,"withdrawTime":1614757314628}
+{
+  "approvalType": "数据表访问申请",
+  "organizationId": "18591d40-aef4-490f-97d2-25716c600000",
+  "organizationName": "string",
+  "reason": "我试试",
+  "resourceId": 3,
+  "resourceName": "string",
+  "userId": "0dd2b292-9fc2-11ea-bb37-0242ac130002",
+  "userName": "string"
+}
+
+curl --location --request DELETE 'http://localhost:48381/authorizations/users/f27d2bb2-3c9a-4ec1-b359-1cdae2542001/privileges/TABLE/actions/SELECT' \
+--header 'x-token: eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiJmMjdkMmJiMi0zYzlhLTRlYzEtYjM1OS0xY2RhZTI1NDIwMDMiLCJ0ZW5hbnRJZCI6IjVmNTdjNmQ3LWI2ZjUtNDI2Mi05YmFkLWI3YWQzOTVkZjEzNSIsImV4cGlyZWQiOiIyMDIxLTAzLTA1IDE2OjA5OjUyIiwiZXhwIjoxNjE0OTMxNzkyfQ.JnAn_4YK_QlG83pVlmYUmOkfMPEVKOUcIhphRWed6BHtr9AtEQSwOPgYKsC8clEhj3gy7iRq1SSmKH1YvRC3BA' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "ids": [
+    250
+  ]
+}'
+
+登录任意一台hadoop节点执行下面的命令
+mv /data/presto/bin/presto /data/presto/bin/presto_old_0.239
+mv  发给你的文件  /data/presto/bin/
+chmod +x /data/presto/bin/presto
+执行presto查询测试
+
+
+大屏代码：3564
+
+
+高可靠一致性集群：
+	作用：
+		集群状态数据
+		活跃节点监控
+		准备切换
+		分布式锁
+		分布式事务
+		全局递增时间戳
+		全局递增序列
+
+1.文件夹是什么？怎么操作来的
+2.资源提供方对应的页面是什么
+3.访问失败次数不一定能做
+4.访问数据总量
+
+
+
+
+文件夹名称：
+文件夹提供方：
+责任人：
+摘要：
+发布日期：
+更新时间：
+文件数量
+
+
+2000* 365
+
+
+对了数据表审计，这个口径按照什么呢？
+之前的大屏，数据资源指标的访问次数口径是 （执行select sql，调用中台数据访问api，data-x导出） ，是还按照这个口径来吧？
+
+--数据访问审计sql
+select e.name as responsible_organization_name,d.id as resource_id,d.friendly_name as resource_name,d.total_access_count as access_count,d.access_record_num ,d.access_count as accessFailcount from
+(select a.id from namespace_databases a inner join namespaces b
+on a.namespace_id = b.id
+where b.tenant_id  = "17910de8-2cb2-44f9-b696-61777b482678" )c
+inner join namespace_tables d
+on c.id = d.database_id
+inner join authorization_organizations e
+on d.responsible_organization_id = e.id
+
+--更新 目录访问次数
+select f.folder_id,sum(f.is_succeed)  as access_count,count(*) as total_access_count
+(select c.user_id as admin_user_id,d.responsible_person_id ,d.id
+(select user_id,tenant_id from authorization_roles a
+inner join authorization_role_user_relations b
+on a.id = b.role_id
+where type = 'admin') c
+inner join document_folders d
+on c.tenant_id = d.tenant_id ) e
+inner join folder_access_records f
+on e.id = f.folder_id
+where f.user_id != e.admin_user_id and f.user_id != e.responsible_person_id
+and f.create_time > :start_date and f.create_time <= :end_date
+group by f.folder_id
+
+
+技术问题：
+lineage_relations 血缘关系表中数据关系存在重复，需要想办法去重
+业务问题：
+1数据血缘涉及租户隔离吗？ （不涉及就是跟数据大屏一样所有用户看到的都是一个结果）
+2.在不加 数据表英文名称 检索条件时，如何展示？展示全部关系？（实际情况：页面上显示个一百张表都可能放不下）
+询问关系：是否确定
+数据库层->汇聚层->标准层->服务层
+
+1.定时更新血缘任务
+	是否使用大屏定时任务 （新添加一个定时任务）
+	根据前端需要的数据，设计表结构
+	编写sql，更新表中数据
+2.血缘展示
+	全部展示
+	根据查询条件展示
+
+
+展示全部节点
+	节点名称
+	节点层级 数据源
+	value
+关系展示：
+	源
+	目标
+	value
+
+
+单表查询
+	节点id，表名称，层级-标签
+	源节点id，目标节点id，
+关系维护：
+	标签层级需要实时查询
+	数据源不需要
+
+1.通过表名称查询
+	找到当前表所有上游关系，
+		便利所有上游一直向上查找，找到数据源或者不存在为止
+	找到当前表所有下游关系
+		便利所有下游一直向下查找，找到数据源或者不存在为止
+
+关联关系用id描述
+
+
+1.定义一个接口
+	节点id（type-id），表名称，层级-标签
+	源节点id，目标节点id，value
+
+id,source_type,source_id,destination_type,destination_id,count,total_count,earliest_time,latest_time,create_time,update_time
+
+业务维护唯一值 ：source_id，destination_id，source_type，destination_type
+
+
+	输入表名称  ，查询出表的上级关系和下级关系
+	查询表上级关系
+	判断该条数据应该如何查询：
+		if 如果是 源端 代表 上级
+			查询出所有上级
+			停止条件，找到它本身，或者找到数据源，或者不存在退出
+	查询表下级关系
+		判断该条数据应该如何查询：
+		if 如果是 目标端 代表 下级
+			查询出所有下级
+			停止条件，找到它本身，或者不存在退出
+	合并结果
+		源类型,类型 id ->	目标类型,目标类型id  value
+
+	转换结果为 节点数组
+		遍历集合去除重复节点，并分成数据源，和数据表两组。
+		批量查询数据源转换为 节点信息。
+		批量查询数据表转换为 节点信息。
+	转换结果为 关系数据组
+		遍历集合 将合并结果集转化为 关系数据组
+
+
+
+定时任务：
+	在kernal中，新添加一个类，编写定时任务
+	去重，根据type字段对数据解析，降低后面的使用复杂度。
+
+查询表 名称 和层级关系
+select c.id,c.name,d.value from
+(select a.id,a.name ,b.value from namespace_tables a inner join namespace_table_tag_values b
+on a.id = b.table_id
+where a.id in (1,2,3)) c inner join
+(select id,substr(value,5,3) as value from namespace_table_tag_enum_values where value in ("汇聚层(STG)","标准层(DWD)","服务层(ADM)")) d
+on c.value = d.id
+
+
+查询用户的数据源
+select a.id,a.name,a.type from data_sources  a
+inner join  authorization_users b
+on a.tenant_id  =  b.tenant_id
+where b.id = "20210517111234843808212066111488"
+
+
+
+-- 血缘关系统计表
+DROP TABLE IF EXISTS `lineage_relations_statistics`;
+CREATE TABLE `lineage_relations_statistics` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `source_type` varchar(32) NOT NULL COMMENT '源类型 1=table,2=database',
+  `source_id` bigint(20) NOT NULL COMMENT '源id',
+  `destination_type` varchar(32) NOT NULL COMMENT '目标类型 1=table,2=database',
+  `destination_id` bigint(20) NOT NULL COMMENT '目标id',
+  `count` bigint(20) NOT NULL COMMENT '数据量',
+  `total_count` bigint(20) NOT NULL COMMENT '总数据量',
+  `earliest_time` datetime NOT NULL COMMENT '操作时间',
+  `latest_time` datetime NOT NULL COMMENT '操作时间',
+  `update_time` datetime NOT NULL COMMENT '操作时间',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='血缘关系统计表';
+alter table lineage_relations_statistics add index lineage_relations_statistics_idx_si (source_id);
+alter table lineage_relations_statistics add index lineage_relations_statistics_idx_di (destination_id);
+
+--血缘表 加索引
+alter table lineage_relations add index lineage_relations_idx_ct (create_time);
+
+--血缘关系统计表
+DROP TABLE IF EXISTS "lineage_relations_statistics";
+CREATE TABLE "lineage_relations_statistics" (
+	"id"                bigint IDENTITY (1, 1) NOT NULL,
+	"source_type"            varchar(32)            NOT NULL,
+	"source_id"     bigint            NOT NULL,
+	"destination_type"       varchar(32)                 NOT NULL,
+	"destination_id"     bigint           NOT NULL,
+	"count"         bigint            NOT NULL,
+	"total_count"           bigint            NOT NULL,
+	"earliest_time"         timestamp           NOT NULL,
+	"latest_time" timestamp           NOT NULL,
+	"update_time"        timestamp                    NOT NULL,
+	CLUSTER PRIMARY KEY ("id")
+);
+CREATE INDEX lineage_relations_statistics_idx_si ON lineage_relations_statistics (source_id);
+CREATE INDEX lineage_relations_statistics_idx_di ON lineage_relations_statistics (destination_id);
+
+--血缘表 加索引
+CREATE INDEX lineage_relations_idx_ct ON lineage_relations (create_time);
+
+1.为了保证无环，屏蔽掉了一些节点之间的关系信息。
+影响：这些被屏蔽的关系信息当认为是正确的时后，没有办法显示，会误认为是bug
+决绝办法：如果有类似需求，需要血缘支持编辑，将链接关系查询出来，由用户编辑保存正确后再展示
+
+数据血缘有环处理方案：
+方案一： A->B->C->A    随机删除一个关联关系 ，使其不有环
+1.自动删除有环逻辑，但会有上面的问题
+方案二：
+2.如果存在有环，将有环信息提供给前端，前端编辑完成后，在展示。 要实现这个功能 这个版本应该上不了了。
+方案三：
+3.前端使用别的插件支持有环逻辑
+
+insert overwrite table lineage_test_2_20210712152814668 select * from lineage_test_1_20210712152738441 ;
+
+--第一次查询执行
+select d.source_id,d.destination_id,d.type,d.earliest_time,d.latest_time,d.total_count,e.total_read_records as count from
+(select  source_id,destination_id,type,min(create_time) as earliest_time,max(create_time) as latest_time ,sum(total_read_records) as total_count from
+(SELECT a.source_id,a.destination_id,a.type,a.create_time,b.total_read_records  FROM lineage_relations a
+inner join scheduler_job_task_data_x_export_results b
+on a.record_id = b.id
+where type = 'data-x-export' and a.create_time >= :start_time and a.create_time < :end_time
+union all
+SELECT a.source_id,a.destination_id,a.type,a.create_time,b.total_read_records  FROM lineage_relations a
+inner join scheduler_job_task_data_x_import_results b
+on a.record_id = b.id
+where type = 'data-x-import' and a.create_time >= :start_time and a.create_time < :end_time
+union all
+SELECT a.source_id,a.destination_id,a.type,a.create_time,b.count  FROM lineage_relations a
+inner join sql_execute_records b
+on a.record_id = b.id
+where a.type = 'sql-execution' and a.create_time >= :start_time and a.create_time < :end_time ) c
+group by source_id,destination_id,type ) d
+inner join
+(SELECT a.source_id,a.destination_id,a.type,a.create_time,b.total_read_records  FROM lineage_relations a
+inner join scheduler_job_task_data_x_export_results b
+on a.record_id = b.id
+where type = 'data-x-export' and a.create_time >= :start_time and a.create_time < :end_time
+union all
+SELECT a.source_id,a.destination_id,a.type,a.create_time,b.total_read_records  FROM lineage_relations a
+inner join scheduler_job_task_data_x_import_results b
+on a.record_id = b.id
+where type = 'data-x-import' and a.create_time >= :start_time and a.create_time < :end_time
+union all
+SELECT a.source_id,a.destination_id,a.type,a.create_time,b.count  FROM lineage_relations a
+inner join sql_execute_records b
+on a.record_id = b.id
+where a.type = 'sql-execution' and a.create_time >= :start_time and a.create_time < :end_time ) e
+on d.source_id = e.source_id and d.destination_id = e.destination_id and d.type = e.type and d.latest_time = e.create_time
+
+--增量查询
+
+SELECT a.source_id,a.destination_id,a.type,a.create_time as latest_time,b.total_read_records  FROM lineage_relations a
+inner join scheduler_job_task_data_x_export_results b
+on a.record_id = b.id
+where type = 'data-x-export' and a.create_time >= :start_time and a.create_time < :end_time
+union all
+SELECT a.source_id,a.destination_id,a.type,a.create_time,b.total_read_records  FROM lineage_relations a
+inner join scheduler_job_task_data_x_import_results b
+on a.record_id = b.id
+where type = 'data-x-import' and a.create_time >= :start_time and a.create_time < :end_time
+union all
+SELECT a.source_id,a.destination_id,a.type,a.create_time,b.count   FROM lineage_relations a
+inner join sql_execute_records  b
+on a.record_id = b.id
+where a.type = 'sql-execution' and a.create_time >= :start_time and a.create_time < :end_time
+order by latest_time
+
+1.count逻辑没有做
+2.data-x 导入中什么时候会出现  失败的读取数量
+
+
+大屏2 用户测试数据
+lineage_test_x
+			 3-> data-x
+ 822 -> 1 -> 3 ->5
+ xxx -> 2 -> 3 ->4 -> data-x
+			 3 ->6
+
+			有环测试 6->1
+
+无数据表权限测试 ！！
+
+
+0->1->2->3->4->5->6->3
+0->6->7->0
+
+0->1 1-2
+
+
+container -> http  -> hive-driver ->  sql-executor(接口) ->  jobTaksApi -> 通用接口写入结果 -> 默认值count 给 0
+页面直接执行 -> grpc -> hive-driver ->
+
+
+stg_water_big_20210702175200138
+dws_water_quality_station_data_20210330131940816
+test_csv_20210528190527333
+
+358测试
+select * from dws_water_quality_station_data_20210330131940816 order by  wt  limit 1000;
+select * from dws_water_quality_station_data_20210330131940816 order by  stcd  limit 1000;
+select * from dws_water_quality_station_data_20210330131940816 order by  stnm  limit 1000;
+
+select * from dws_water_quality_station_data_20210330131940816 order by  stnm,wt,stcd  limit 1000;
+
+select * from stg_water_big_20210702175200138 order by  create_time limit 1000;
+
+select create_time from stg_audit_records_20210722151551997 group by create_time limit 10000;
+
+select * from stg_audit_records_20210722151551997 where create_time = '2021-06-24 21:05:07.231'
+
+oder by limit 不同的字段 分别执行时间为
+
+select * from dws_water_quality_station_data_20210330131940816 where wt = 999.0;
+
+select * from dws_water_quality_station_data_20210330131940816 where stcd = 'AB000304' and detection_type = 'zhiyuan' ;
+
+select count(*) from dws_water_quality_station_data_20210330131940816 where stcd = 'AB000305' and  detection_type='QUALITY' and wt=31.5 or stat_time = '19910919';
+
+where x=xxx 不同过滤条件行结果
+
+select stcd,stnm, avg(wt),max(wt),min(wt) from  dws_water_quality_station_data_20210330131940816 group by stcd,stnm
+
+avg() max() min() group by xx 执行结果
+
+
+select count(*) from  stg_water_big_20210702175200138  a inner join dws_water_quality_station_data_20210330131940816 b on a.name = b.stcd
+
+A inner join B ...... where x = xxxx 执行结果
+
+
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select * from dws_water_quality_station_data_20210330131940816 where wt = 999.0;"  > test.log &&date
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select * from dws_water_quality_station_data_20210330131940816 where stcd = 'AB000304' and detection_type = 'zhiyuan' ;"  > test.log &&date
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select count(*) from dws_water_quality_station_data_20210330131940816 where stcd = 'AB000305' and  detection_type='QUALITY' and wt=31.5 or stat_time = '19910919';"  > test.log &&date
+
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select stcd,stnm, avg(wt),max(wt),min(wt) from  dws_water_quality_station_data_20210330131940816 group by stcd,stnm "  > test.log &&date
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select stcd,stnm, avg(wt),max(wt),min(wt) from  dws_water_quality_station_data_20210330131940816 group by stcd,stnm "  > test.log &&date
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select stcd,stnm, avg(wt),max(wt),min(wt) from  dws_water_quality_station_data_20210330131940816 group by stcd,stnm "  > test.log &&date
+
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select count(*) from  stg_water_big_20210702175200138  a inner join dws_water_quality_station_data_20210330131940816 b on a.name = b.stcd "  > test.log &&date
+date && ./hetu-cli --server http://172.30.13.179:7880 --catalog primary --schema ns_xuzhiyuan --execute "select count(*) from  stg_water_big_20210702175200138  a inner join dws_water_quality_station_data_20210330131940816 b on a.name = b.stcd "  > test.log &&date
+date && ./presto --server http://172.30.13.179:9880 --catalog primary --schema ns_xuzhiyuan --execute "select count(*) from  stg_water_big_20210702175200138  a inner join dws_water_quality_station_data_20210330131940816 b on a.name = b.stcd "  > test.log &&date
+
+
+
+存储业务流程中存储的是  节点信息，和节点关系信息。
+
+tree转换逻辑
+	节点数组，关系数据组
+	构建节点树结合
+
+	循环节点数组
+		判断关系数组是否为
+		为空
+			查询关系数组 判断 当前节点是否有父节点
+			没有父节点：
+				直接添加到 节点树数组上
+			有父节点：
+				(这块逻辑有一个多余的获取 node id 的地方，relaion中已经有了id可以不用过去 node接地直接获取 nodeindb就可以了)
+				通过关系数组找到 父节点 ，将父节点创建出来 并添加到一个 父节点树上
+				将父节点树 设置为当前节点的 的父节点
+		不为空：
+			挨个创建节点数据组	并返回节点树
+
+
+
+
+ 运行业务流程主要逻辑：
+ 	检查当前流程是否上线，如果上线抛异常退出（上线的业务不能试运行）
+ 	检查业务流程中是否有节点，没有节点异常退出
+
+
+添加节点名称
+parameter_extract
+
+1.创建业务流程：
+	查询业务流程名称是否存在，不存在保存业务流程。
+
+2.创建流程节点：（开发）
+	检查提交接节点类型是否存在 （添加 该表中数据 dictionaryCode ）
+	判断业务流程是否存在
+		目的：保存或者更新业务流程中的setting信息
+
+3.保存流程节点中内容：（开发）仿照 data-x-import  导入编写
+
+4.保存业务流程：
+
+5.查询业务流程：（待看）
+
+6.查询流程节点：（开发）
+
+7.试运行节点：（开发）
+
+
+试运行逻辑：
+data_platform_application
+	创建调度计划请求逻辑(拼接请求参数)
+		设置scheduler_plan 表的字段参数
+		需要开发：添加对应节点的 dto 信息
+	更新调度计划请求逻辑
+		需要开发：添加对应节点的dto 信息
+data_platform
+	添加调度计划逻辑（执行插入动作 insert scheduler_plan,scheduler_plan_nodes）
+		根据类型，添加不能node设置
+
+1.将查询值放到用户参数中
+
+2.找到何时对sql 或者where条件进行的替换 （在生成scheduler_job_task  的时候完成了参数替换，代码在jobRuntimeService 类中）
+
+3.开始设计实现
+
+本周计划完成
+1.保存节点内信息 （完成）
+
+2.查询节点内信息  （完成）
+
+3.创建流程节点-添加新的节点类型 (完成)
+mysql
+INSERT INTO `dictionary_codes` (`id`, `code`, `name`, `type`, `status`, `create_time`)
+VALUES (82, 'parameter-extract', '参数提取', 'parameter_config', '0', now());
+dm
+INSERT INTO "dictionary_codes" ("id", "code", "name", "type", "status", "create_time")
+VALUES (82, 'parameter-extract', '参数提取', 'parameter_config', '0', now());
+
+4.保存流程参数-检查参数不能跟提取流程参数重名 （完成）
+
+5.查询流程列表中添加新的节点 	（完成）
+
+6.运行流程中-添加新类型的处理逻辑
+
+
+tez.task.resource.memory.mb=1024
+
+id   结果   时间
+
+validatePartitionAndFilter
+
+参数检查
+向plan表插入数据
+
+
+添加索引 mysql
+alter table scheduler_job_tasks add index scheduler_job_tasks_idx_ji (job_id);
+alter table scheduler_jobs add index scheduler_jobs_idx_pi (plan_id);
+
+dm
+create index scheduler_job_tasks_idx_ji on scheduler_job_tasks(job_id);
+create index scheduler_jobs_idx_pi on scheduler_jobs(plan_id);
+
+
+
+数据中台2.0 数据访问 api 最佳实践
+
+
+数据访问api使用最佳实践：
+
+强调 mpp引擎指定，limit限制
+使用经验：
+1.对查询的数据表数据量进行统计分析，得出结论是否为大表 100M以内为小表（估算公式 数据表行数*一行的字节数）
+2.大表优化
+	查看表是否已经创建分区，没有需要创建分区。（创建分区注意事项，年分区，月分区，日分区）
+	已经有分区，检查sql中是否使用到了分区条件
+3.没有大表或者大表已经有分区仍然慢
+	可能查询sql过于复杂，需要拆分sql。将sql中一部分逻辑 计算结果 固化到 结果表中。然后使用简化过后的sql查询结果表来降低查询时间。
+
+----测试数据--------------
+
+数据治理流程
+库表导入 ， mysql 导入中台 stg层 表 ，该表为空不需要初始化数据
+数据治理stg-dwd层      dwd层表初始化数据10万条
+数据治理dwd-adm层      经过 单表去重，两张表join到 adm层。
+库表导出， adm层的表导出数据到 mysql。
+
+表名定义						数据量
+库表导入表名定义  import_xxx_1	初始化数据2000条
+stg层定义   stg_xxx_1            不需要初始化数据
+dwd层定义   dwd_xxx_1			初始化数据10-100万条
+adm层定义  adm_xxx_1			不需要初始化数据
+库表导出表名定义  export_xxx_1	不需要初始化数据
+
+
+以上所有表都创建100张
+
+所有表都使用相同的列
+列内容
+int，double，String，date每种类型4 个列共16列，
+列内容规则：
+	一列是自增主键 ，
+	一列是1-50万随机数字，
+	一列是0-1随机
+	一列是枚举[a,b,c,d]中的一个随机值
+	一列32个字符随机
+	一列10个中文随机（如果不能随机就用32个字符代替）
+	一列时间自增
+	一列时间随机
+	其他字段随意生成
+
+-----------全链路监控----------------------------
+1.分析功能实现细节，跟产品沟通清楚达成一致。
+2.将5个接口定义好，方便前端开发
+
+
+
+数据源接口技术分析： （做成定时任务延时两分钟）
+	做成实时的需要有时间限制，默认展示最近多久的状态
+	数据源最近没有任何操作，需要展示吗？
+	最近一次链接状态：当时任务执行时的链接状态还是目前的链接状态（如果是当时任务的链接状态是没有记录的）
+
+	测试：库表导入失败 日志表是如何记录数据的
+	最近一次延时=任务完成时间-任务创建时间
+
+数据开发接口技术分析：
+	显示的三列是：任务名称 状态 和 更新时间？（开始时间，完成时间，？）
+	要展示多少条数据？ 最近7天的
+	点击跳转到任务详情页面
+
+
+数据开发详情接口技术分析：
+	页面上需要添加查询时间窗口
+	最近7天  ，展示的是所有异常任务
+
+数据开发详情-离线数据开发作业接口技术分析：
+	计划时间  和 开始时间的设计意义是为了 展示任务执行的延时性吗？
+	答：展示最近一个调度任务失败的流程，并且可以通过计划时间 和开始时间做检索 查询出多条数据 （这两个时间怎么使用）
+
+	跳转详情不需要开发，但需要返回给前端taskid
+
+数据消费接口技术分析：（做成定时任务延时两分钟）
+	做成实时的需要有时间限制，默认展示最近多久的状态？
+	应用系统最近没有消费 数据要展示吗？
+
+数据消费接口详情技术分析：
+	列表展示的是包含成功和失败吗？ 成功是没有日志展示的
+	做成实时的需要有时间限制？   （ 这个查询跟数据访问审计的查询sql类似，数据量大了会很慢）
+
+数据消费详情接口-查看失败日志
+	无
+
+
+
+1.开发6个跟前端相关的接口
+
+2.开发数据源 和数据消费 定时任务接口
+表结构
+all_link_monitor_last_time_data
+-- mysql
+-- 全链路监控最近一次数据表
+DROP TABLE IF EXISTS `all_link_monitor_last_time_data`;
+CREATE TABLE `all_link_monitor_last_time_data`
+(
+    `id`               bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Id',
+    `type`        varchar(255) NOT NULL COMMENT '类型',
+    `type_id` bigint(20) NOT NULL COMMENT '类型id',
+    `type_data`        varchar(255) NOT NULL COMMENT '类型对应的数据内容',
+    `tenant_id`      varchar(36)  NOT NULL COMMENT '所属租户ID',
+    `create_time`      datetime NOT NULL COMMENT '创建时间',
+    `update_time`      datetime NOT NULL COMMENT '创建时间',
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 1
+  DEFAULT CHARSET = utf8mb4
+  ROW_FORMAT = DYNAMIC COMMENT ='全链路监控最近一次数据表';
+
+-- 应用系统数据消费详情表
+DROP TABLE IF EXISTS `app_system_data_consume_info`;
+CREATE TABLE `app_system_data_consume_info`
+(
+    `id`               bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'Id',
+    `system_name`        varchar(255) NOT NULL COMMENT '应用系统名称',
+    `system_id` bigint(20) NOT NULL COMMENT '应用系统id',
+    `table_name`        varchar(255) NOT NULL COMMENT '数据表英文名',
+    `count`               bigint(20)  NOT NULL COMMENT '访问数据量',
+    `status`               bigint(20)  NOT NULL COMMENT '访问状态',
+    `task_id`               bigint(20)  NOT NULL COMMENT '任务id',
+    `tenant_id`      varchar(36)  NOT NULL COMMENT '所属租户ID',
+    `access_time`      datetime NOT NULL COMMENT '创建时间',
+    `create_time`      datetime NOT NULL COMMENT '创建时间',
+    PRIMARY KEY (`id`)
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 1
+  DEFAULT CHARSET = utf8mb4
+  ROW_FORMAT = DYNAMIC COMMENT ='应用系统数据消费详情表';
+
+alter table app_system_data_consume_info add index app_system_data_consume_info_idx_at (access_time);
+alter table app_system_data_consume_info add index app_system_data_consume_info_idx_ct (create_time);
+
+
+
+-- dm
+-- 全链路监控最近一次数据表
+DROP TABLE IF EXISTS "all_link_monitor_last_time_data";
+CREATE TABLE "all_link_monitor_last_time_data"
+(
+    "id"               bigint IDENTITY (1, 1) NOT NULL,
+    "type"        varchar(255) NOT NULL,
+    "type_id" bigint       NOT NULL,
+    "type_data"        varchar       NOT NULL,
+    "tenant_id"   varchar(36)  DEFAULT NULL,
+    "create_time"      timestamp       NOT NULL,
+    "update_time"      timestamp       NOT NULL,
+    CLUSTER PRIMARY KEY ("id")
+);
+-- 应用系统数据消费详情
+DROP TABLE IF EXISTS "app_system_data_consume_info";
+CREATE TABLE "app_system_data_consume_info"
+(
+    "id"               bigint IDENTITY (1, 1) NOT NULL,
+    "system_name"        varchar(255) NOT NULL,
+    "system_id" bigint       NOT NULL,
+    "table_name"        varchar(36)       NOT NULL,
+     "count"               bigint     DEFAULT NULL,
+     "status"               bigint     DEFAULT NULL,
+     "task_id"             bigint      DEFAULT NULL,
+    "tenant_id"   varchar(36)  DEFAULT NULL,
+    "access_time"      timestamp       NOT NULL,
+    "create_time"      timestamp       NOT NULL,
+    CLUSTER PRIMARY KEY ("id")
+);
+
+create index app_system_data_consume_info_idx_ct on app_system_data_consume_info(create_time);
+create index app_system_data_consume_info_idx_at on app_system_data_consume_info(access_time);
+
+测试项：
+	新租户测试
+	老租户测试
+
+
+排序
+
+1.编写一个性能测试示例
+  反馈一下性能测试工具安装的问题
+2.把python代码跑起来
+3.本周开发任务
+
+interceptor.authentication.enabled=false
+    http-failed-code: 401 #UNAUTHORIZED
+    response-failed-code: 401
+
+
+  - job_name: "prometheus"
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+            instance: prometheus
+
+
+8000万
+com.yunli.bigdata.application.cross.configuration.WebServerFactoryConfiguration
+com.yunli.bigdata.infrastructure.interceptor.configuration.WebServerFactoryConfig
+
+
+
+
+select id AS name_id,value as name,ifnull(count(total_read_records),0)  as access_count,ifnull(sum(total_read_records),0) as access_record_num from
+(select b.id,b.value from namespace_table_tag_keys a join namespace_table_tag_enum_values b on (a.id = b.key_id)
+where a.name = '') c
+inner join
+(select  g.total_read_records,application_id from
+(select table_id ,count as total_read_records,application_id,user_id from
+(select id, count,application_id from sql_execute_records where is_succeed = 1 and type = '
+' and create_time <= :end_date and create_time > :start_date) a
+inner join
+(select record_id,table_id,user_id from namespace_table_access_records where is_succeed = 1 and is_source = 1) b
+on a.id = b.record_id) g
+inner join
+(select table_id,responsible_person_id,user_id as tenant_admin_id from
+(select user_id,tenant_id from authorization_roles a
+inner join authorization_role_user_relations b
+on a.id = b.role_id
+where type = '') e
+inner join
+(select responsible_person_id,tenant_id ,d.id as table_id from authorization_users c
+inner join namespace_tables d
+on c.id = d.responsible_person_id ) f
+on e.tenant_id = f.tenant_id) h
+on g.table_id = h.table_id
+where g.user_id != h.responsible_person_id and g.user_id != tenant_admin_id) k
+on k.application_id=c.id
+group by id,value
+
+测试内容
+数据源：添加，更新
+	添加一个新的数据源， 完成
+	给这个数据源一个库表导入任务，
+	更新这个库表导入任务，
+	修改数据源链接，超时，和密码用户名称错误等情况，查看status状态是否异常
+应用数据消费 --
+	添加一个应用系统标签并关联aksk，
+	使用aksk消费一个数据表，
+	使用aksk消费另一个数据表
+消费详情 ---
+	测试时间查询，
+	测试状态查询，
+	测试系统名称查询，
+	查看上面的任务是否生成，
+测试日志
+
+
+项目打包
+
+1.添加id查询
+2.部署提测环境
+3.文档
+
+数据中台token过期的返回值是
+{"code":1110,"error":"登录已过期,请重新登录"}
+
+
+alter table screen_system_department_history_statistics change tag_id tag_id varchar(256) comment '系统、部门的id';
+
+alter table screen_system_department_history_statistics modify (tag_id varchar(20));
+
+
+tixong
+
+biao   zuzhi
+
+
+
+
+xitong1   1
+xitong2   1
+
+一张表只会有一个提供方，一个系统
+
+
+
+
+htap含义
+为啥会出现htap数据库
+
+目前市面上的 htap 数据库有哪些
+
+
+实现一个htap系统需要哪些技术
+
+
+
+HTAP是 OLTP（在线事务处理）和 OLAP（在线分析处理）功能的 合集系统。
+
+
+
+select e.id,d.application_id as system_id,d.tenant_id,d.name as system_name,e.table_name,e.count,e.status,e.task_id,e.access_time,e.create_time   from
+
+(select a.application_id,b.tenant_id,c.name from authorization_user_access_keys a
+
+inner join authorization_users b
+
+on a.user_id = b.id
+
+inner join application_system_info c
+
+on a.application_id  = c.id
+
+where a.application_id is not null
+
+group by application_id,tenant_id,value )d
+
+left join
+
+(select a.* from app_system_data_consume_info a
+
+inner join
+
+(select max(id) as id from app_system_data_consume_info where create_time < :end_time and create_time > :start_time
+
+group by system_id,tenant_id) b
+
+on a.id = b.id ) e
+
+on d.application_id = e.system_id and d.tenant_id = e.tenant_id
+
+
+
+
+话题
+付大伟（大卫）(付大伟)
+10月26日 11:31
+付大伟
+com/yunli/bigdata/streaming/jobs/service/impl/StreamingDataSourceServicImpl.java dataSourceRepository
+---
+宋中武
+com/yunli/bigdata/application/scheduling/service/impl/TaskSchedulingServiceImpl.java StreamingPlansRepository
+---
+邓斌峰 辛明辅助
+com/yunli/bigdata/kernel/coordinator/service/DocumentService.java DocumentFoldersRepository DocumentFolderFilesRepository 邓斌峰 辛明辅助
+com/yunli/bigdata/kernel/coordinator/service/FileService.java DocumentFolderFilesRepository DocumentFoldersRepository 邓斌峰 辛明辅助
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>data-document-orm</artifactId>
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>data-document-common</artifactId>
+---
+韩克党
+com/yunli/bigdata/kernel/coordinator/service/StreamingService.java StreamingPlansRepository SchedulerJobTaskService 韩克党
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>streaming-governance-orm</artifactId>
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>streaming-governance-common</artifactId>
+---
+周志远
+com/yunli/bigdata/kernel/coordinator/service/screen/StatisticsHistoryIndicate.java ScreenHistoryStatisticsRepository ScreenSystemDepartmentHistoryStatisticsRepository ScreenRealDataRepository ScreenStatisticsControlRepository ScreenVisitHotStatisticsRepository NamespaceTableRepository DocumentFoldersRepository 周志远
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>data-screen-orm</artifactId>
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>data-screen-common</artifactId>
+---
+李海
+com/yunli/bigdata/kernel/coordinator/service/DataLineageService.java LineageRelationRepository LineageRelationsStatisticsRepository ScreenStatisticsControlRepository DataSource 李海
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>data-lineage-orm</artifactId>
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>data-lineage-common</artifactId>
+---
+熊名章 周志远配合
+com/yunli/bigdata/kernel/coordinator/service/increment/DataSourceLastTimeTaskStatistics.java AllLinkMonitorLastTimeDataEntity AllLinkMonitorLastTimedataRepository 熊名章 周志远配合
+com/yunli/bigdata/kernel/coordinator/service/increment/AppSystemDataConsumeInfoStatistics.java AppSystemDataConsumeInfoEntity AppSystemDataconsumeInfoRepository 熊名章
+com/yunli/bigdata/kernel/coordinator/service/increment/DataConsumeLastTimeTaskStatistics.java AllLinkMonitorLastTimeDataEntity AppSystemDataConsumeInfoEntity AllLinkMonitorLastTimedataRepository 熊名章
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>task-dashboard-orm</artifactId>
+<artifactId>kernel-coordinator-service</artifactId>  <artifactId>task-dashboard-common</artifactId>
+
+有几个改造的任务，上述是分工，下午我开会和指定人说一下改造方式
+付大伟（大卫）(付大伟)
+3点我拉个会议一起说下
+
+请输入回复内容
+
+
+172.30.1.247    auto-hadoop01
+172.30.2.5      auto-hadoop03
+172.30.1.186    auto-hadoop02
+
+
+http://172.30.2.5:3000/
+http://localhost:9090
+
+将 api访问 关系录入 lineage_relations 关系表中
+
+升级2.8sql
+update lineage_relations_statistics set  source_type = 'SDB'   where source_type = 'D';
+update lineage_relations_statistics set  destination_type = 'DDB'   where destination_type = 'D';
+
+
+来源数据库 id
+目标数据库 id
+来源topic id
+aksk id
+
+通过以上数据对进行特殊处理
+
+
+
+血缘改动：
+数据源之前节点唯一标识为 D_id  ,现在改为 SDB_id ，层级D 改为 SDB
+目标源之前节点唯一标识为 id_D  ,现在改为 DDB_id ，层级D 改为 DDB
+
+查询时的类型对应简称 ，这些简称也是血缘层级
+提供方：SO，来源系统：SS，数据源：SDB,数据表：T，目标源：DDB，消费系统：CS，消费方：CO
+
+SO：
+
+数据库权限提前检查
+提供方：
+	数据库权限检查
+	topic权限检查
+	通过sql查询到 数据库id
+	通过sql查询到 topic id
+	递归子节点
+来源系统：
+	数据库权限检查
+	topic权限检查
+	通过sql查询到 数据库id
+	通过sql查询到 topic id
+	递归子节点
+源数据库：
+	数据库权限检查
+	topic权限检查
+	通过sql查询到 数据库id
+	通过sql查询到 topic id
+	递归子节点
+
+目标源：
+	数据库权限检查
+	通过sql查询到 数据库id
+	递归父节点
+消费系统：
+	查询应用系统sql
+	查询来源标签sql
+	数据库权限检查
+	递归父节点
+提供方：
+	查询应用系统sql
+	查询来源标签sql
+	数据库权限检查
+	递归父节点
+
+
+
+
+
+-- 查询数据源
+select b.* from data_sources a
+inner join lineage_relations_statistics b
+on a.id = b.source_id
+where b.source_type = 'SDB' and  a.name like '%数据源%' and a.tenant_id = '17910de8-2cb2-44f9-b696-61777b482678'
+
+-- 查询提供方 数据库
+select b.* from data_sources a
+inner join lineage_relations_statistics b
+on a.id = b.source_id
+inner join authorization_organizations c
+on a.responsible_organization_id = c.id
+where b.source_type = 'SDB'  and a.tenant_id = '17910de8-2cb2-44f9-b696-61777b482678' and  c.name like '子组织'
+
+-- 查询提供方 topic
+
+select b.* from storage_topics a
+inner join lineage_relations_statistics b
+on a.id = b.source_id
+inner join authorization_organizations c
+on a.responsible_organization_id = c.id
+where b.source_type = 'T'  and a.tenant_id = '17910de8-2cb2-44f9-b696-61777b482678' and  c.name like '子组织'
+
+-- 查询来源系统
+select b.* from storage_topics a
+inner join lineage_relations_statistics b
+on a.id = b.source_id
+inner join namespace_table_tag_enum_values c
+on a.tag_value_id = c.id
+where b.source_type = 'SDB'  and a.tenant_id = '17910de8-2cb2-44f9-b696-61777b482678' and  c.value like '水利系统'
+
+--  查询目标数据源
+select b.* from storage_topics c
+inner join lineage_relations_statistics b
+on c.id = b.source_id
+where b.destination_type = 'DDB'  and c.tenant_id = '17910de8-2cb2-44f9-b696-61777b482678' and  c.name like '水利系统'
+
+-- 查询消费系统
+select b.* from application_system_info  c
+inner join lineage_relations_statistics b
+on c.id = b.destination_id
+inner join authorization_organizations a
+on a.responsible_organization_id = c.id
+where b.destination_type = 'DDB'  and c.tenant_id = '17910de8-2cb2-44f9-b696-61777b482678' and  c.name like '子组织'
+
+
+select distinct c.id as organization_id, c.name as organization_name,d.id as system_id,d.name as system_name from authorization_user_access_keys a
+inner join authorization_user_organization_relations b
+on a.user_id = b.id
+inner  join authorization_organizations c
+on b.organization_id = c.id
+inner join application_system_info d
+on a.application_id  = d.id
+where d.id in (:database_id)
+
+
+1.低延时的数据接入
+2.批量的数据接入
+	需要引擎支持实时带更新写入，和不错的批量写入能力
+3.argo任务执行引擎 ， 我认为完全可以自己写一个代替argo的执行引擎。
+4.底座的稳定性提升 ，底座不稳定的一部分原因就是 zk 和 datanode 节点混合部署导致的。
+提升定时调度任务效率
+5.提升云原生
+6.
+
+
+
+
+1.查询所有数据 名称，展示状态
+2.修改状态接口 名称，状态码
+3.图片上传接口 名称，数据
+4.图片查询接口 名称
+5.图片删除接口 名称
+id ，key，value，data,updateTime
+
+
+token=eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiI1ZWQ1ZjI1Zi05NGJmLTQ0NTItOTlmMC1mM2Q4YWI4ZmFiYjQiLCJ1c2VyTmFtZSI6InVzZXJfeHp5QHh1emhpeXVhbiIsIm9yZ2FuaXphdGlvbk5hbWUiOiLkupHnspLmmbrmhaciLCJ0ZW5hbnRJZCI6IjE3OTEwZGU4LTJjYjItNDRmOS1iNjk2LTYxNzc3YjQ4MjY3OCIsImxvZ2luVHlwZSI6InVzZXIiLCJleHBpcmVkIjoiMjAyMS0xMS0xMCAxMToyMzoyMCIsImV4cCI6MTYzNjUxNDYwMH0.j2QAr69elPUCUgxcNYgHeImrpeA7in4MsWIktRF8KoFBRETUnRJ7BJ8NXZkq7onGAe6Eyk2g19y9gsci8KB4DQ
+      eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiI1ZWQ1ZjI1Zi05NGJmLTQ0NTItOTlmMC1mM2Q4YWI4ZmFiYjQiLCJ1c2VyTmFtZSI6InVzZXJfeHp5QHh1emhpeXVhbiIsIm9yZ2FuaXphdGlvbk5hbWUiOiLkupHnspLmmbrmhaciLCJ0ZW5hbnRJZCI6IjE3OTEwZGU4LTJjYjItNDRmOS1iNjk2LTYxNzc3YjQ4MjY3OCIsImxvZ2luVHlwZSI6InVzZXIiLCJleHBpcmVkIjoiMjAyMS0xMS0xMSAwOToxNzoyOSIsImV4cCI6MTYzNjU5MzQ0OX0.CGnGG3sFJQzXn1uloWFs_3lfhs0t-y-27wiRh1Uifn2WwiSSnfeoOmzDueD_uRWFg8st5WNdmxFtzQkIb1Lszg
+
+j5C3sb9fEgwPtJUB2c5AmdU+igSM9Pl2suj8MXXMFFoLsOJoSaao3X6Qed6iES5jkKiQhxK2slbYSPyANxYqxh0fBZlwt5QywF20qbiuaiNMuLxEz1usSXeUMK/sGJ1beh27q5lt3Fu3FccdnYLwMowIbq4orsDZua007ADKb768S1uNmZVnUpqxJ203smRAUxIcaGH4dysGU1qrlULv11PgnsCP5za/Q2DDG3WXQJBANthmLIiswq1rakupoPCixEcZvIiDRKSjUZ+Rkct2w+1cHf1PKTVuddRZB1GCY4/PFmA/+vRkOXHCUmDRFqbIigGcBl9RNCaxqFGMmY6yRA==
+
+
+1:登录页、2:管控台、3:资产门户、4:浏览器页签
+
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN5RENDQWJDZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQjRYRFRJeE1ERXhOREF6TXpRek9Wb1hEVE14TURFeE1qQXpNelF6T1Zvd0ZURVRNQkVHQTFVRQpBeE1LYTNWaVpYSnVaWFJsY3pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBT2xPCk1VcUZRbWR4UDJJbGNrcFBqVGVjTEg2c3d3Y2tGUFpBZXl2NFpybk1vczkvWG11bWR3azNaaGFUS0lDU1V5V0gKWkd2VHBabG1Qa0FZUkF6NUxIczZra0laTUlPTHlsVWZiMFE4MDhpSHduc3RoMW1Da2lIeWhxQlFrcXdpSW4vKwpIMVhFY0Y3TmxNRHdvZmVETzFmd2hCSVpLYkx5a3M3OFhBMEdhdE52M1NuZ3IzTGhQTzZZdVJXZHRlSk1DZHhNCmZiU0ZzS1RHT0dacnFYN24rUlUyZkVLUlYzZTJYQXdZNVF6RGZqWUVPL2tEZEFsRGlVZHAvTU1SU2FiTklsZWgKTFh2VmptL3JSejRUSFZvQkZlSVlJTytLd0Voa3FUdEZ4Q08xWGdTdUlNUDlRSGppVmMyRm1JMjF3N2pYSmFZWgo4RkdZd1FWNHVpT01oZVozRWZVQ0F3RUFBYU1qTUNFd0RnWURWUjBQQVFIL0JBUURBZ0trTUE4R0ExVWRFd0VCCi93UUZNQU1CQWY4d0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFGTStlVlE1dmJXcVFOU3AyRlQxZEZuUVRlQW0KK0JoUU5ic1JnaWQrdDFXYllocHVpeXhTQXNBQnQ3aC8wSDdSVzRJM1E0K3l1eU9rdEI5Q1hBVTU1WjZEWUFDTgptdm5Fb09RTWh2Z2RNYzlURUVnSmt0MFJmVXkxZ2U3QnlhRUhtWHlSK2JyR0FvOUZybThKUmxmcm9JU3ovWi9JClVSU2UvcDRGRk5qQzFQNVBsalpwSmsvcXdlREhMY3hsQVo2ZytRTFRyb3FNZzJ4YWtzTDA0QXNqR01Ob2dCR1UKTVlWU1IwSU5pZ3lySTdQQlU5RlZUNW5JS1B5b1JyVXBkWXFTWWlyeDNJdjRIcFFaUlBuUm8rZnJrcng3ajVSZwpLUEpKTllwWFZzTlhPQVk0NmZmRXBrNHI0c083TWtKYU5ZNmkyeUJNUXNYdWl0NVlYZGtKOFQrNkQ2TT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+    server: https://172.30.13.177:6443
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: kubernetes-admin
+  name: kubernetes-admin@kubernetes
+current-context: kubernetes-admin@kubernetes
+kind: Config
+preferences: {}
+users:
+- name: kubernetes-admin
+  user:
+    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM4akNDQWRxZ0F3SUJBZ0lJUmpZSmJSc3lmTkV3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TVRBeE1UUXdNek0wTXpsYUZ3MHlNakF4TVRRd016TTBOREphTURReApGekFWQmdOVkJBb1REbk41YzNSbGJUcHRZWE4wWlhKek1Sa3dGd1lEVlFRREV4QnJkV0psY201bGRHVnpMV0ZrCmJXbHVNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DQVE4QU1JSUJDZ0tDQVFFQXlOeXp0UGVzV2dYSUZ2MXAKL21CRTlza1pLTVcvQmw0ZEN1d01McGJacDBhSmVZOXdpOHBReE52NVp0Y1I1QnRNTTVIeE9PT0Q2bFI2bU53VgpwRE1ONWVqczJYMUR4blhYeUYrOFpzOHdjY2g3UVBYb2dRS0dSdUVnWE5yaUxUUEV1eUVud1YwVGtNOG5RMFdqCm1IMHdaWW85ODE3VGlhZFoyN2pHelJhMnBqZlowbFFKWjQxcE42ejREMm1OTVQwbVB5dE9mU1RJbFNRdzFqUCsKdEdia3VpZnFMWjVzalBYaHdHOTFuUWxZV255TWRQVWNSR1VmdENZYWRQbzBvL0YrNURveWpscHpFU2xZRDhFVwpuQlI2QmE3eXhEZ2pYTitlcmNDek1HUjJCcDhWV3dWa2U5WG8rZnR3Z3FzSFFVbEVaLy9XV0dYays5dENOOUp2CnhTd3lsd0lEQVFBQm95Y3dKVEFPQmdOVkhROEJBZjhFQkFNQ0JhQXdFd1lEVlIwbEJBd3dDZ1lJS3dZQkJRVUgKQXdJd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFKemRtVFNWMUZMc0FGbzR6czQxMDlZTHZna1lwNXJKUFo4VQo1Y2hwVzR5US9VdWZZQm1Oa25RNnM3SHppMU85ZUdua1NDcXREVEtkU3VtTEVmcnl5SjhOUWR5VjRIOEkrZVYxCnhPdlNDNXNBYXJ3MjY0SkNJMVdSSUZCbC9mNU9xbHltQ3dLckx3cXh1Qmo4QlFkV2p1U0tSQWNjZ0RnQWhmYlcKT0FHZWxTRW82empCc3FKUEJvUm9HcjIyOXl0WGQvMnplblBGWG12aDNhZFQxT0orbGh1MFNMZEFLaUZLb2tPZwowcGJQa2FxYlRJcGJVbVpwTzRvSlhha2s2SGRySHo5MXlrYXlpZzlJdFhWWXVhWDZZZkFtZXl1MVBjT0RJc3JqCklYdStXTW9mSUJLRXR0ODVBYm5vOXA4VlR2Rmg1L1dkQlVhRzE1cVBmd2RhNVJXR1Zuaz0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBeU55enRQZXNXZ1hJRnYxcC9tQkU5c2taS01XL0JsNGRDdXdNTHBiWnAwYUplWTl3Cmk4cFF4TnY1WnRjUjVCdE1NNUh4T09PRDZsUjZtTndWcERNTjVlanMyWDFEeG5YWHlGKzhaczh3Y2NoN1FQWG8KZ1FLR1J1RWdYTnJpTFRQRXV5RW53VjBUa004blEwV2ptSDB3WllvOTgxN1RpYWRaMjdqR3pSYTJwamZaMGxRSgpaNDFwTjZ6NEQybU5NVDBtUHl0T2ZTVElsU1F3MWpQK3RHYmt1aWZxTFo1c2pQWGh3RzkxblFsWVdueU1kUFVjClJHVWZ0Q1lhZFBvMG8vRis1RG95amxwekVTbFlEOEVXbkJSNkJhN3l4RGdqWE4rZXJjQ3pNR1IyQnA4Vld3VmsKZTlYbytmdHdncXNIUVVsRVovL1dXR1hrKzl0Q045SnZ4U3d5bHdJREFRQUJBb0lCQUFJTnI1Q2tENUVFQ2gyaQpEWmxhSnBwWFIvaVF2UGsxc1JwUmUzWm1lR2NyWTNCb3RQL1kyNmFIa1M4cDk3YmJTSlltWWM3eEZJSXF4dTRWCklldUIwaHlObXc1R0o1RTUxekRuT2FmYmFtVmZaVk11c0dmUlBNb3d0d0g4QXQvdmJZMTBNMUhZdjhCMVBiT0UKWEwzTVdkaFA1MzQ3Yy9JdVVjN2JQcjBPQkdRQ25ZWStYQmFJSVZFU2VUNmFXaW5TOWVLWWtPanVIMTlncmJWWApmblN4RGRCWklFdnVobDRxNmppTU5TTmc5S0QxU1E2Z3g4akdMN01BY1RBNnZOZDlQWGg5eVBFNVY4a0JRdExFCmhCS0JBSXkyNEw1R3VLOXJaaUJYMXlWdXVzK3ZvZGRiVUFoTGxCVXZwdFNFTmNaOFUzVFUvNWUvdjRRYjZqbnUKWGhrdHJrRUNnWUVBNTUvQksyK1BIcXIrRElKWGhteHdMc1ByVnFUc3lxTlFIZFhoRW1EL3ZNNWtOd0s3VDBnKwppMUFtV3dRTnAxekV0SUNGem9YekJEL0RWN0cvcmxNYnltUDk0NmYrV2taemF6clp6c1JHT3l4WkpxWUFrYXNXCkJTc014azdqUi9WMGZOaDIyQkFrY01OeFdLbEMwcmhISU9tazlIVGxQZTk0NzJlRWxsSzBCT2NDZ1lFQTNnQXUKb2dXcVNoY1ViMWU3WWFPQzg5UjhodkJIS08zODdNalg5N2V5bmRVK2ZJR3drR1VWOG9sVytxait2c2QraGppQwpRQ2l0aUVjK3haQU9qcUtTRnk3QXVrTjdDdWRaaG11eS90czNUTFptMFFhN1o1eGJ1enVsbWR6M2lOaHltL1A2CmgveEZrMjV0REZLRG1xdGJrZHRwUFUzNXJIUEVBcUk1K0RBUi90RUNnWUFQcFdmOEVpWWQwVGttQ1N2MlpaN1MKV2VPc3o2azdLdnIvZVBJaU5yRXZ4TlZhTGZJUE1mY2ZuQU5yUklQVG1WMmtQOFpLSkJ3OVhqMUkwRFg5aFptcgorME1zUEszZTFVRjRyZG9Hc0pWNTY4Mzk0VnJLZkQ4WmpFWHBvMnlROE5DMG1qNjA2Nm82ZjhsSlR1MjNwRUVSCnhSYWllTDcvaHd5cFIxbmFlYTIxWXdLQmdRQyt3alZQNzhKRjY5TVpZYStYMUtMZjFnUXpCeUIrWVJGbWZhWm0KSzZrRnlvam8vNSt5VThvcUlDMW5NZlBFQnpRSExXTnVzZ1Y3Qm8wL3dldGdVUDFyZ2pjRlZwclI0YjJocmNXZgpETXRWMVo0L21xTktBcWNvR2JiUW9YanFVK01YY3V3aUVYblBsNkdJWnhiQ3Z0L3VVelQ1QXBtNXY3Zjc4MTRRCmoyM0hJUUtCZ1FDSng2VjBFcTMzaXBER2FjZ0cvcUNzVy82Tk1JMEowZ1ZWbTZkZXV1N0FKaTk5dnlhVE5rbzUKcm5hbGV5VzlpTThkcEY4K1g2M2lzWlVVQ3g4RzQ0TERwQ0pzYVozWll0a0szdU9jN21RM3VkNWpUc25iM09EQgp4R1VXalViYUliUWxxY0VJR1E1OFFEZGRzaGNHYzBOV3krU0hsZEs5bC9IQ0dCUER6K21XS1E9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+
+
+
+DROP TABLE IF EXISTS `platform_logos`;
+CREATE TABLE `platform_logos`
+(
+    `id`            bigint(20) NOT NULL COMMENT '主键',
+    `key`  bigint(20) COMMENT '1:登录页、2:管控台、3:资产门户、4:浏览器页签',
+    `value`  bigint(20)   COMMENT '1:不展示、2：展示默认、3：展示自定义',
+    `image`   MediumBlob  COMMENT '图片',
+    `update_time`    datetime COMMENT '更新时间',
+    PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  ROW_FORMAT = DYNAMIC;
+
+
+
+DROP TABLE IF EXISTS "platform_logo";
+CREATE TABLE "platform_logo"
+(
+    "id"  int IDENTITY (1, 1) NOT NULL,
+    "key"  int not null,
+    "value" int not null,
+    "image"  blob ,
+    "update_time" timestamp,
+    CLUSTER PRIMARY KEY ("id")
+);
+
+
+-- dm
+insert into platform_logo ("key","value")
+VALUES (1,2),(2,2),(3,2),(4,2)
+
+
+{
+  "platformNamespace":"dpa",
+  "dagNamespace":"argo",
+  "dagEndpoint":"http://argo-server.argo:2746",
+  "dagServiceAccount":"workflow",
+  "taskImages":{
+    "coordinator":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-coordinator-container:GA-2.8.0.x86_64",
+    "topic-import":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-topic-import-container:GA-2.8.0.x86_64",
+    "failure":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-failure-container:GA-2.8.0.x86_64",
+    "data-x-import":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-data-x-import-container:GA-2.8.0.x86_64",
+    "data-x-export":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-data-x-export-container:GA-2.8.0.x86_64",
+    "sql-execution":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-sql-execution-container:GA-2.8.0.x86_64",
+    "quality-execution":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-quality-execution-container:GA-2.8.0.x86_64",
+    "parameter-extract":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-parameter-extract-container:GA-2.8.0.x86_64",
+    "api-import":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-http-import-container:GA-2.8.0.x86_64",
+    "ftp-import":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-file-synchronize-container:GA-2.8.0.x86_64",
+    "ftp-export":"registry.cn-beijing.aliyuncs.com/yunli-data-platform/federation-scheduler-file-synchronize-container:GA-2.8.0.x86_64"},
+  "imagePullSecret":"aliyun",
+  "imagePullPolicy":"Always",
+  "dagFailFast":true,
+  "tokenSecret":"8cb3cffd0e5343ddb094ab547b559e84a7e409322c0a43a081f2a44bd05a07d1",
+  "taskQueryStatusInterval":5000,
+  "taskQueryStatusFailedLimit":60,
+  "planExecutionProtectionInterval":30000,
+  "dataImportDefaultFetchSize":1024,
+  "storageTopicExistReloadInterval":300000,
+  "serviceEndpoints":{
+    "kernel-coordinator":"172.30.1.219:30003/x-kernel-service",
+    "nacos":"172.30.1.219:30000",
+    "kafka":"172.30.1.247:9092,172.30.1.186:9092,172.30.2.5:9092"},
+  "kafkaPartitionSettings":{
+    "data-platform-event":{
+      "partitionCount":1,
+      "replicationFactor":1
+    },
+    "data-platform-job-task":{
+      "partitionCount":1,
+      "replicationFactor":1
+    },
+    "data-platform-storage":{
+      "partitionCount":1,
+      "replicationFactor":1
+    }
+  },
+  "certificate":"MIIFrTCCA5WgAwIBAgIJAJitDxeuS3shMA0GCSqGSIb3DQEBCwUAMG0xCzAJBgNVBAYTAkNOMQswCQYDVQQIDAJCSjELMAkGA1UEBwwCQkoxFDASBgNVBAoMC1lVTkxJWkhJSFVJMRAwDgYDVQQLDAdCSUdEQVRBMRwwGgYDVQQDDBN3d3cueXVubGl6aGlodWkuY29tMB4XDTIxMDEwODAyNTUwM1oXDTMxMDEwNjAyNTUwM1owbTELMAkGA1UEBhMCQ04xCzAJBgNVBAgMAkJKMQswCQYDVQQHDAJCSjEUMBIGA1UECgwLWVVOTElaSElIVUkxEDAOBgNVBAsMB0JJR0RBVEExHDAaBgNVBAMME3d3dy55dW5saXpoaWh1aS5jb20wggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQC8U8eKZcaAH6sX1kZAUHeU9TD3ZMzt7NykfXTBFDwlelP1ldCOizy1utDz4g4GCXukGGsPi0eZSaJEA84pPPZbkJ8SN5phcc2EEcG9RaMyqyrvJzx4eyGjKfoqotHTHYCDND20bZ+DZ27paH3pspjowMn/Evk6olafJk+IFDiQhc10P8cV/8ed8zu6kHw1c1XbeX4fkSSzTPPkHgCBOakLM79TZtQdv+7s3QUS5bBudZbNoAv1IXlwI1cFb2IKHwsv94SvJ3HHB0Re3Q4Cpozx07uEcXTOKsmy8TONSnQwIxEZ2rfVFZwtU/N0/FSxUNRghT/YP0iwuAk91EDgSlnHiaUvz7XzvkAQoM/L+rq3J7IB51WMejpInfncy9SF1jCbfhRUDEAjrKmvSdCFyYyP5EXeVaxV0JZQ+Bye91/PWkk6PSGLoBrexOMlgxjapGgRY9APaIpH13dGoU9aJYZmf5N3Mrh18WsOcekWfWlUOcYxShawLsRDaiLy8rCNqcdZT3tYvEZcq7GYx++PLtnhdV8RbaWfYg8qPh9rfVf7Ew0SS5pvVrExvMFfmEb+Q+qYC7B7kaF1y5MiYG6EvIHoUBw1Lu7Q6Lvni7FYrfjL9wWpPsHHMdqGOEAyVwBemIwg9/lXGuACfGEunVC+gY+HabRPZZX7D1z4P2GDum5P/QIDAQABo1AwTjAdBgNVHQ4EFgQUV3P0kKZSDcFx9tDfIJH1O2d+upcwHwYDVR0jBBgwFoAUV3P0kKZSDcFx9tDfIJH1O2d+upcwDAYDVR0TBAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEAUI1i7xi1Uc5Kfenqqcfq4Qp5bLIkZidifxqb0ONNoT8tyn3V+BnSp5gxvXActCwDwbJsXdyEMB9N91cpwLuD8kl0/fqumWkSNgGbJQ9xcDrRlqCtdVk5wQiWkxaXjo89bUk4IuvkCG7abCkgjtpSb0rodcABGyVh6chrFv+fRu8y6xhlh6fDq7BVIP9dNpe0K23BIh7bUTUi3SUaKwiNoSDIFL85Rr7UZbMVpzS0Cs+BWKRALvPNLm5yL4r67C0EeHJUNwZf8lezQ+L9H7wDjhu+0xa0a5lqKiRUZ13DeL4CL6iIgnYiDE9e1pAx+mRvQsgQEd65tFHp4CMd5Ci3NydJLbgUD2pdB1xWka83DGcuptzz2usaCaMNShwAup2dMeKvGzQ8IxegZyIqmrplasCEfT2y6fdNCXIzpO14HcVctZ+1H8TTQKJc3zhmyFqWJ/8fSUKtc16rUi3d4Ga0TmEXcGrdAItDqIdde3MKU0u+5h2Y1mD6cmtkdoR417VRd1gCsqUekArx2dLASkQvpbGDR1F5U/G2iViLQqn5oaV+cNp6D/kj1N03ANedcDVKLwIgfG+u5nNXA8ih0lTvoq+sXMHsIecBy0vjteW7Gwa4P2qTafCTAAha8Op7u5kp8csP+Ju1M7EDudT298jn/AQIncojh00OtzU4ADxvj4U=",
+  "license":"eyJpZCI6ImU4YzBiZjM4LTZiMTMtNDFlZi05M2RhLWZiMTk1NWQyMGQyZiIsIm93bmVyIjoiUE9D5Li05pe25o6I5p2DIiwiZXhwaXJlIjoiMjAyMS0xMi0zMSAwMDowMDowMCIsInNpZ25hdHVyZSI6ImdoSGlvbWYyMWxmT2c3dVBwa3ZoZWs2R2h2YVRWd2duRHJ1U1B1NkkzeVdOcDZJanNKSGtBZUk1VDhVTVlZeVNoZnp4YjEvZlZQSjd5cEVYVXRFbG0wSjVxNXdmL1pwYmxFb1pLZUNFdDc5aUxxMzJNSHBOY1JLUERYR24rZmVOOXUwTjQzNFlzSVVsMHhKU1B5cldyZ2Y0TTdoZkJQb3JMSWovM1JoODNEZktLeWw4N1UyRGtDQTNVNlV2dlhrMWIwdjREQUc0RzN4U0FEeVNYeE5kdFhTanpDWldpUzE4eDgvbmk4aHFOWGI1NHFoMG41YjFGdHUzS1BuZzNOeE5tRS9mOUNOVWkrdm1kdHhEbG1sNUFTS290cWlSUjNRVzU1blFPZ2MyV3RRWTBZTmZxU1BPbmJWVjNRUTNyQzNwd3NiUTNMR0lMeHV3VXdKY0lZOTYrWXJSdVozb3p4QzlPeEJYNVlhQUtFZHpXZ3dJWktpNDJFQk5Pdko5MEp4cWNSejU2OGpGM2NmRHc0NUZSdlUrMVVSZ3hVMmp5S3dIWUFsZW53cUlIUUE5RzREOHcvSkN1UnN2bHEvSnRIc1ZjSkZrNFllQ0JmaWs3YjVXVVBrUEJMVWZ3T0l5ZU50am43aDhKQ1BMdE40aVV0eDZZcXFOcGVEUFQrVWxlTDd2aVJSV0ZLWXBNQkxkUVRPMm8xd2NjeSt1SFZxa0ZteTlQWkFZVXFtSlhpdUU2VVVJTE11NmRUeGJtUzBwY2NZM3BRUXVyV05rWkFYZzFmUmFPN3JEUTZpc3V5NmRlWmljOVZYYmFibTM1eEVFYzAxTytzTU5EM0g1K0FZaW12KzVpcDRrUGNmNlhpUENpckx4a2pKeElqTzR3UTlUNmRERmNYbDhTMEpDakpBPSJ9",
+  "saveSqlExecutionDetail":true,
+  "queryDefaultLimit":1100,
+  "requiredSystemTagKeyNamesForTables":["所属数仓层级"],
+  "queryTableSizeLimitWhenUseMppEngine":4294967296,
+"disableExportIfTableHaveTheseTags":["1"]}
+
+
+2f11bcdbde82dfbfecfb69241599460117b4aaed
+74c4a66c0da23fb71109ec2d53021ee88900c0f1
+
+java.io.IOException: Multiple partitions for one merge mapper:
+hdfs://ns1/hive/warehouse/ns_dadev.db/dws_air_qlt_stat_20211029152731035/.hive-staging_hive_2021-11-25_16-25-07_185_3959810947578240944-5/-ext-10002/time_type=hour/time_col=2021102600/space_type=station/etl_script_id=air_sta_aqi_pp_1h/1
+NOT EQUAL TO
+hdfs://ns1/hive/warehouse/ns_dadev.db/dws_air_qlt_stat_20211029152731035/.hive-staging_hive_2021-11-25_16-25-07_185_3959810947578240944-5/-ext-10002/time_type=hour/time_col=2021102600/space_type=station/etl_script_id=air_sta_aqi_pp_1h/2
+
+发送日志：
+	遍历维护的地址列表
+	发送日志
+	当发现有同步失败时，在列表中移除当前任务。并启动一个线程对失败的任务进行重试
+
+
+
+
+追赶失败的任务线程：
+	地址
+	失败的任务id -1 重新发送
+
+	线程退出条件：
+		当前发送成功的任务id 等于commit id。并且当前角色是leader。
+
+分裂清理log 并生成快照。使用新的log id
+同步组_logId_ 分裂
+组_1_logId
+组_2_logId
+
+第一种实现方式：
+	每次递减，直到成功，如果中间差值很大需要很多次交互
+	第二种，实现一个接口，直接或目标节点的最大日志提交条目，并与当前的commit比较，小于当前的commit，查询数据库找到目标对应条目的下一条记录，发送如果失败-1再次发送，直到成功后者结束。
+
+
+业务流程血缘
+
+id
+flow_node_id
+source_id
+destination_id
+update_time
+
+DROP TABLE IF EXISTS `business_flow_node_lineages`;
+CREATE TABLE `business_flow_node_lineages`
+(
+    `id`      bigint(20)  NOT NULL AUTO_INCREMENT COMMENT 'ID',
+    `flow_node_id`    varchar(36) NOT NULL COMMENT '节点id',
+    `source_id`    bigint(20) NULL COMMENT '源表ID',
+    `destination_id`  bigint(20) NULL COMMENT '目标表ID',
+    `update_time`  datetime              DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  ROW_FORMAT = DYNAMIC COMMENT ='业务流程节点血缘表';
+
+DROP TABLE IF EXISTS "business_flow_node_lineages";
+CREATE TABLE "business_flow_node_lineages"
+(
+    "id"           bigint IDENTITY (1, 1)  NOT NULL,
+    "flow_node_id"         varchar(36) NOT NULL,
+    "source_id"    bigint NULL,
+    "destination_id"  bigint NULL,
+    "update_time"  timestamp,
+    CLUSTER PRIMARY KEY ("id")
+);
+
+71529faf-eb51-49b0-84cb-6ede9e4bed52
+eyJhbGciOiJIUzUxMiJ9.eyJ1c2VySWQiOiI1ZWQ1ZjI1Zi05NGJmLTQ0NTItOTlmMC1mM2Q4YWI4ZmFiYjQiLCJ1c2VyTmFtZSI6InVzZXJfeHp5QHh1emhpeXVhbiIsIm9yZ2FuaXphdGlvbk5hbWUiOiLkupHnspLmmbrmhaciLCJ0ZW5hbnRJZCI6IjE3OTEwZGU4LTJjYjItNDRmOS1iNjk2LTYxNzc3YjQ4MjY3OCIsImxvZ2luVHlwZSI6InVzZXIiLCJleHBpcmVkIjoiMjAyMS0xMi0wOCAxMzo1NjozNiIsImV4cCI6MTYzODk0Mjk5Nn0.GRahTbNONVtzCaf-H6hVREPVnN-MCOrBxkT_tPhw-iMoxsWbhPNDcRaqU2O6nPADoaOm_CBvza9usHW77AfqGA
+"insert overwrite table lineage_test_3 select * from lineage_test_1  UNION ALL select * from lineage_test_2"
+GET http://hadoop01:8088/ws/v1/cluster/scheduler
+
+
+  <property>
+    <name>hadoop.http.authentication.type</name>
+    <value>simple</value>
+  </property>
+    <property>
+    <name>hadoop.http.authentication.simple.anonymous.allowed</name>
+    <value>false</value>
+  </property>
+
+ java.lang.IllegalArgumentException: org.hibernate.hql.internal.ast.QuerySyntaxException: unexpected token: from near line 1, column 9 [select  from com.yunli.bigdata.application.lineage.entity.BusinessFlowNodeLineagesEntity as generatedAlias0 where ( generatedAlias0.sourceId=:param0 ) and ( generatedAlias0.destinationId=:param1 )]
+
+
+
+-- 大屏修改字段类型 达梦
+alter table screen_system_department_history_statistics modify (tag_id varchar(20));
+
+
+-- 大屏修改字段类型  mysql
+alter table screen_system_department_history_statistics
+	change tag_id tag_id varchar(256) comment '系统、部门的id';（使用，分割可以一次修改多个列）
+
+-- 字段改名  达梦
+
+alter table  code_table rename to codes;
+alter table  codes alter column "code_type" rename to "type_chinese";
+alter table  codes alter column "code_value" rename to "value";
+
+ALTER TABLE "codes"  ADD COLUMN "industry_chinese" varchar(100)   NULL;
+ALTER TABLE "codes"  ADD COLUMN "industry_english" varchar(100)  NULL;
+ALTER TABLE "codes"  ADD COLUMN "type_english" varchar(100)  NULL;
+ALTER TABLE "codes"  ADD COLUMN "reference_frame" varchar(200)  NULL;
+
+
+-- mysql
+RENAME TABLE code_table TO codes;
+
+ALTER TABLE codes
+    CHANGE COLUMN code_type type_chinese varchar(100) NOT NULL COMMENT '代码类型',
+    CHANGE COLUMN code_value value varchar(100) NOT NULL COMMENT '代码值';
+
+ALTER TABLE codes ADD COLUMN `industry_chinese` varchar(100) NULL COMMENT '行业英文名' ;
+ALTER TABLE codes ADD COLUMN `industry_english` varchar(100) NULL COMMENT '行业中文名' ;
+ALTER TABLE codes ADD COLUMN `type_english` varchar(100) NULL COMMENT '代码类别英文名';
+ALTER TABLE codes ADD COLUMN `reference_frame` varchar(200) NULL COMMENT '参照依据';
+
+
+
+
