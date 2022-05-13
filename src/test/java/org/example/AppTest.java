@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.example.raft.constant.TaskType;
-import org.example.raft.dto.LogEntry;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.util.ByteUtil;
 import org.junit.Test;
 import org.rocksdb.Options;
@@ -62,13 +62,13 @@ public class AppTest {
 
   @Test
   public void testEfficient2() {
-    LogEntry[] raftLogs = new LogEntry[1000000];
-    LogEntry log = new LogEntry();
+    LogEntries[] raftLogs = new LogEntries[1000000];
+    LogEntries log = new LogEntries();
     log.setCmd(1000000);
     long startTime = System.currentTimeMillis();
     Integer a;
     Integer b = log.getCmd();
-    for (LogEntry raftLog : raftLogs) {
+    for (LogEntries raftLog : raftLogs) {
       if (true) {
         a = log.getCmd();
         a = log.getCmd();
@@ -86,13 +86,13 @@ public class AppTest {
    */
   @Test
   public void testEfficient3() {
-    LogEntry[] raftLogs = new LogEntry[1000000];
-    LogEntry log = new LogEntry();
+    LogEntries[] raftLogs = new LogEntries[1000000];
+    LogEntries log = new LogEntries();
     log.setCmd(1000000);
     long startTime = System.currentTimeMillis();
     Integer a;
     int b = log.getCmd();
-    for (LogEntry raftLog : raftLogs) {
+    for (LogEntries raftLog : raftLogs) {
       if (true) {
         a = raftLogs.length;
         a = raftLogs.length;

@@ -2,10 +2,10 @@ package org.example.raft.role;
 
 import org.example.conf.GlobalConfig;
 import org.example.raft.constant.StatusCode;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
-import org.example.raft.dto.LogEntry;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
@@ -24,23 +24,37 @@ public class FollowRole extends BaseRole implements Role {
 
   private long checkTimeoutInterval;
 
-  public FollowRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus,RoleStatus roleStatus, GlobalConfig conf) {
-    super(saveData,saveLogInterface,raftStatus,roleStatus);
+  public FollowRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
+      GlobalConfig conf) {
+    super(saveData, saveLogInterface, raftStatus, roleStatus);
     this.checkTimeoutInterval = conf.getCheckTimeoutInterval();
   }
 
   /**
    * 如果在超过选举超时时间的情况之前没有收到当前领导人（即该领导人的任期需与这个跟随者的当前任期相同）的心跳/附加日志 状态改为候选人
    */
+
+  private void init() {
+
+    LogEntries maxLog = saveLog.getMaxLog();
+    //接收log日志时判断，日志是否连续使用
+    raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
+    raftStatus.setLastTimeTerm(maxLog.getTerm());
+
+    //判断超时选举用
+    raftStatus.setLastTime();
+  }
+
   @Override
   public void work() {
-    raftStatus.setLastTime();
+    init();
+
     do {
       try {
         Thread.sleep(checkTimeoutInterval);
         LOG.info("check  heartbeat  ");
         long l = System.currentTimeMillis();
-        if (raftStatus.getLastTime() + checkTimeoutInterval < l) {
+        if (raftStatus.getLastUpdateTime() + checkTimeoutInterval < l) {
           //超时 将当前角色转换为 candidate
           roleStatus.followerToCandidate();
           LOG.info("heartbeat timeout  follower role transition candidate role");
@@ -52,7 +66,7 @@ public class FollowRole extends BaseRole implements Role {
   }
 
   @Override
-  public RaftRpcResponest addLogRequest(AddLog request) {
+  public RaftRpcResponest addLogRequest(AddLogRequest request) {
 
     return new RaftRpcResponest(raftStatus.getCurrentTerm(), addLogProcess(request));
   }
@@ -73,7 +87,7 @@ public class FollowRole extends BaseRole implements Role {
   }
 
   @Override
-  public DataResponest setData(LogEntry[] request) {
-    return new DataResponest(StatusCode.REDIRECT,raftStatus.getLeaderAddress());
+  public DataResponest setData(String request) {
+    return new DataResponest(StatusCode.REDIRECT, raftStatus.getLeaderAddress());
   }
 }

@@ -1,12 +1,10 @@
 package org.example.raft.dto;
 
-import com.alibaba.fastjson.annotation.JSONField;
-
 /**
  *@author zhouzhiyuan
  *@date 2021/10/22
  */
-public class AddLog {
+public class AddLogRequest {
 
   private long logIndex;
 
@@ -18,12 +16,9 @@ public class AddLog {
 
   private long preLogTerm;
 
-  private LogEntry[] entries;
+  private LogEntries[] entries;
 
   private long leaderCommit;
-
-  @JSONField(serialize = false,deserialize=false)
-  private boolean exit = false;
 
   /**
    *
@@ -34,8 +29,8 @@ public class AddLog {
    * @param entries
    * @param leaderCommit
    */
-  public AddLog(long logIndex,long term, String leaderId, long prevLogIndex, long preLogTerm,
-      LogEntry[] entries, long leaderCommit) {
+  public AddLogRequest(long logIndex,long term, String leaderId, long prevLogIndex, long preLogTerm,
+      LogEntries[] entries, long leaderCommit) {
     this.logIndex = logIndex;
     this.term = term;
     this.leaderId = leaderId;
@@ -45,25 +40,12 @@ public class AddLog {
     this.leaderCommit = leaderCommit;
   }
 
-  public AddLog(boolean exit) {
-    this.exit = exit;
-  }
-
-
-  public boolean isExit() {
-    return exit;
-  }
-
-  public void setExit(boolean exit) {
-    this.exit = exit;
-  }
-
-  public AddLog(long term, String leaderId) {
+  public AddLogRequest(long term, String leaderId) {
     this.term = term;
     this.leaderId = leaderId;
   }
 
-  public AddLog() {
+  public AddLogRequest() {
   }
 
   public long getLogIndex() {
@@ -106,11 +88,11 @@ public class AddLog {
     this.preLogTerm = preLogTerm;
   }
 
-  public LogEntry[] getEntries() {
+  public LogEntries[] getEntries() {
     return entries;
   }
 
-  public void setEntries(LogEntry[] entries) {
+  public void setEntries(LogEntries[] entries) {
     this.entries = entries;
   }
 

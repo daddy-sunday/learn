@@ -13,8 +13,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.example.raft.constant.MessageType;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.ChaseAfterLog;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcRequest;
 import org.example.raft.dto.SynchronizeLogResult;
 import org.example.raft.dto.TaskMaterial;
@@ -83,17 +84,25 @@ public class SyncLogTask {
       return;
     }
     TaskMaterial[] taskMaterials = new TaskMaterial[size];
-    AddLog[] addLogs = new AddLog[size];
+    LogEntries[] logEntries = new LogEntries[size];
+    //todo优化  计算发送消息大小。消息太大需要分批发送
     for (int i = 0; i < size; i++) {
       TaskMaterial material = queue.remove();
       taskMaterials[i] = material;
-      addLogs[i] = material.getAddLog();
+      logEntries[i] = material.getAddLog()[0];
     }
+
+    long logIndex = logEntries[0].getLogIndex();
+  //leadeer初始时已经同步过log，所以 preLogTerm 是当前leader的任期
+    AddLogRequest addLog = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
+        logIndex - 1,
+        raftStatus.getCurrentTerm(), logEntries, raftStatus.getCommitIndex());
+
     //发送同步log
     List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
     for (String address : raftStatus.getValidMembers()) {
       sendHeartbeats.add(
-          new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLogs)), address,
+          new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLog)), address,
               raftStatus.getCurrentTerm()));
     }
     int count = 0;
@@ -107,7 +116,7 @@ public class SyncLogTask {
           //移除同步失败的节点，并使用单独线程追赶落后的日志。
           String address = future.get().getAddress();
           raftStatus.getValidMembers().remove(address);
-          raftStatus.getFailedMembers().add(new ChaseAfterLog(address, addLogs[0].getLogIndex()));
+          raftStatus.getFailedMembers().add(new ChaseAfterLog(address, logIndex));
         }
       }
     } catch (Exception e) {
@@ -117,7 +126,7 @@ public class SyncLogTask {
     //一批任务更新一次commitLogIndex
     taskMaterials[size - 1].setCommitLogIndexFlag();
     //记录提交的这批数据
-    taskMaterials[size - 1].setAddLogs(addLogs);
+    taskMaterials[size - 1].setResult(logEntries);
     for (int i = 0; i < size; i++) {
       taskMaterials[i].success(count);
     }

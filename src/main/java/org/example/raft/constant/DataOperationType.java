@@ -5,7 +5,9 @@ package org.example.raft.constant;
  *@date 2022/4/6
  */
 public class DataOperationType {
-  public static final int delete = 1;
-  public static final int update = 2;
-  public static final int insert = 3;
+  public static final byte DELETE = 1;
+  public static final byte UPDATE = 2;
+  public static final byte INSERT = 3;
+  public static final byte EMPTY = 4;
+
 }

@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TaskMaterial {
 
-  private AddLog addLog;
+  private LogEntries[] addLog;
 
   private CountDownLatch countDownLatch;
 
@@ -20,23 +20,27 @@ public class TaskMaterial {
    */
   private volatile boolean commitLogIndexFlag = false;
 
-  private volatile AddLog[] addLogs;
+  /**
+   * 返回存储的一批log
+   */
+  private volatile LogEntries[] result;
 
-  public TaskMaterial(AddLog addLog, CountDownLatch countDownLatch, AtomicInteger count) {
+
+  public TaskMaterial(LogEntries[] addLog, CountDownLatch countDownLatch, AtomicInteger count) {
     this.addLog = addLog;
     this.countDownLatch = countDownLatch;
     this.count = count;
   }
 
-  public AddLog[] getAddLogs() {
-    return addLogs;
+  public LogEntries[] getResult() {
+    return result;
   }
 
-  public void setAddLogs(AddLog[] addLogs) {
-    this.addLogs = addLogs;
+  public void setResult(LogEntries[] result) {
+    this.result = result;
   }
 
-  public AddLog getAddLog() {
+  public LogEntries[] getAddLog() {
     return addLog;
   }
 

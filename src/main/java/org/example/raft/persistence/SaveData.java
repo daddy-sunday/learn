@@ -2,7 +2,7 @@ package org.example.raft.persistence;
 
 import java.util.List;
 
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.Row;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteBatch;
@@ -21,7 +21,7 @@ public interface SaveData {
 
   List<Row> scan(byte[] startKey, byte[] endKey);
 
-  void assembleData(WriteBatch batch, AddLog log) throws RocksDBException;
+  void assembleData(WriteBatch batch, LogEntries[] log, byte[] prefixKey) throws RocksDBException;
 
   void writBatch(WriteBatch batch) throws RocksDBException;
 }

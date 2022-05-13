@@ -11,10 +11,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.example.conf.GlobalConfig;
 import org.example.raft.constant.StatusCode;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
-import org.example.raft.dto.LogEntry;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
@@ -105,7 +105,7 @@ public class CandidateRole extends BaseRole implements Role {
   public void getSendVote(VoteRequest request) throws RocksDBException {
     request.setCandidateId(raftStatus.getLocalAddress());
     request.setTerm(raftStatus.getCurrentTerm());
-    AddLog maxLog = saveLog.getMaxLog();
+    LogEntries maxLog = saveLog.getMaxLog();
     request.setLastLogIndex(maxLog.getLogIndex());
     request.setLastLogTerm(maxLog.getTerm());
   }
@@ -120,7 +120,7 @@ public class CandidateRole extends BaseRole implements Role {
   }
 
   @Override
-  public RaftRpcResponest addLogRequest(AddLog request) {
+  public RaftRpcResponest addLogRequest(AddLogRequest request) {
     /**
      * 接收到领导人发送的消息，并且term大于等于自己的term，转变选举状态为 跟随者
      */
@@ -145,7 +145,7 @@ public class CandidateRole extends BaseRole implements Role {
   }
 
   @Override
-  public DataResponest setData(LogEntry[] request) {
+  public DataResponest setData(String request) {
     return new DataResponest(StatusCode.SLEEP, null);
   }
 }

@@ -2,7 +2,7 @@ package org.example.raft.persistence;
 
 import java.util.List;
 
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.Row;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
@@ -14,21 +14,21 @@ import org.rocksdb.WriteBatch;
  */
 public interface SaveLog  {
 
-  void saveLog(byte[] key,AddLog raftLog) throws RocksDBException;
+  void saveLog(byte[] key, LogEntries raftLog) throws RocksDBException;
 
   void saveLog(byte[] key,byte[] value) throws RocksDBException;
 
   void deleteRange(byte[] start,byte[] end) throws RocksDBException;
 
-  AddLog getMaxLog();
+  LogEntries getMaxLog();
 
-  AddLog get(byte[] key) throws RocksDBException;
+  LogEntries get(byte[] key) throws RocksDBException;
 
   RocksIterator getIterator();
 
   List<Row> scan(byte[] startKey, byte[] endKey);
 
-  void  assembleData(WriteBatch batch,byte[] key,AddLog log)  throws RocksDBException;
+  void  assembleData(WriteBatch batch,byte[] key, LogEntries log)  throws RocksDBException;
 
   void writBatch(WriteBatch batch) throws RocksDBException;
 }

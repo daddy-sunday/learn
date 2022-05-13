@@ -3,7 +3,7 @@ package org.example;
 import java.util.List;
 
 import org.example.conf.GlobalConfig;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.Row;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveLog;
@@ -37,7 +37,7 @@ public class SaveLogTest {
 
   @Test
   public void testPut() throws RocksDBException {
-    AddLog addLog = new AddLog();
+    AddLogRequest addLog = new AddLogRequest();
     addLog.setTerm(11L);
     saveLog.saveLog(ByteUtil.concatLogId(1, 11), addLog);
     addLog.setTerm(12);
@@ -54,7 +54,7 @@ public class SaveLogTest {
 
   @Test
   public void testPutReplace() throws RocksDBException {
-    AddLog addLog = new AddLog();
+    AddLogRequest addLog = new AddLogRequest();
     addLog.setTerm(117);
     saveLog.saveLog(ByteUtil.concatLogId(1, 116), addLog);
   }
@@ -64,7 +64,7 @@ public class SaveLogTest {
     WriteOptions options = new WriteOptions();
     options.setDisableWAL(true);
 
-    AddLog addLog = new AddLog();
+    AddLogRequest addLog = new AddLogRequest();
     addLog.setTerm(117);
     saveLog.saveLog(ByteUtil.concatLogId(1, 117), addLog);
   }

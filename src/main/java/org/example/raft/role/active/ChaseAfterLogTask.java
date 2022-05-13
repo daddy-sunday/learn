@@ -5,7 +5,7 @@ import java.util.concurrent.Future;
 
 import org.example.raft.constant.MessageType;
 import org.example.raft.constant.StatusCode;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.ChaseAfterLog;
 import org.example.raft.dto.RaftRpcRequest;
 import org.example.raft.dto.SynchronizeLogResult;
@@ -57,7 +57,7 @@ public class ChaseAfterLogTask implements Runnable {
 
       while (roleStatus.getNodeStatus() == RoleStatus.LEADER ) {
         if (status.getCommitIndex() <= logId) {
-          AddLog log = null;
+          AddLogRequest log = null;
           try {
             log = saveLog.get(ByteUtil.concatLogId(status.getGroupId(), logId));
           } catch (RocksDBException e) {

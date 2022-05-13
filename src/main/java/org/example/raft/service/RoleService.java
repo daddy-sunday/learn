@@ -2,10 +2,9 @@ package org.example.raft.service;
 
 import org.example.conf.GlobalConfig;
 import org.example.raft.constant.MessageType;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataRequest;
 import org.example.raft.dto.GetData;
-import org.example.raft.dto.LogEntry;
 import org.example.raft.dto.RaftRpcRequest;
 import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.VoteRequest;
@@ -68,7 +67,7 @@ public class RoleService {
 
   public Object processRaftRequest(RaftRpcRequest request) {
     if (request.getType() == MessageType.LOG) {
-      return currentRole.addLogRequest(JSON.parseObject(request.getMessage(), AddLog.class));
+      return currentRole.addLogRequest(JSON.parseObject(request.getMessage(), AddLogRequest.class));
     } else if (request.getType() ==MessageType.VOTE) {
       return currentRole.voteRequest(JSON.parseObject(request.getMessage(), VoteRequest.class));
     }
@@ -80,7 +79,8 @@ public class RoleService {
     if (request.getType() == MessageType.GET) {
       return currentRole.getData(JSON.parseObject(request.getMessage(), GetData.class));
     } else if (request.getType() ==MessageType.SET) {
-      return currentRole.setData(JSON.parseObject(request.getMessage(), LogEntry[].class));
+      return currentRole.setData(request.getMessage());
+
     }
     LOG.error("处理请求类型不支持 request：" + request);
     return new RaftRpcResponest(-1L, false);

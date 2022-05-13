@@ -8,13 +8,21 @@ import org.example.raft.dto.ChaseAfterLog;
 /**
  *@author zhouzhiyuan
  *@date 2021/11/19
+ * //todo  优化考虑一下每个成员变量是否需要使用 volatile类型
  */
 public class RaftStatus {
+
+  /**
+   * 目前只有leader 有到了这个状态
+   * 0：离线，1：在线，
+   */
+  private volatile byte serviceStatus = 0;
 
   /**
    * 为后面的多 raftgroup 做准备，先给个默认值
    */
   private int groupId = 1;
+
   /**
    *  data persistence status
    */
@@ -58,11 +66,36 @@ public class RaftStatus {
   private volatile String  leaderAddress;
 
   /**
-   *follower time out
+   *follower 超时重新选举使用 ，每次同步心跳是更新这个时间
    */
-  private volatile long lastTime;
+  private volatile long lastUpdateTime;
+
+  /**
+   *follower 使用，当前存储的日中的最大的logindex
+   */
+  private volatile long lastTimeLogIndex;
+
+  /**
+   *follower 使用，当前存储的日中的最大的logindex的term
+   */
+  private volatile long lastTimeTerm;
 
 
+  public long getLastTimeLogIndex() {
+    return lastTimeLogIndex;
+  }
+
+  public void setLastTimeLogIndex(long lastTimeLogIndex) {
+    this.lastTimeLogIndex = lastTimeLogIndex;
+  }
+
+  public long getLastTimeTerm() {
+    return lastTimeTerm;
+  }
+
+  public void setLastTimeTerm(long lastTimeTerm) {
+    this.lastTimeTerm = lastTimeTerm;
+  }
 
   public List<ChaseAfterLog> getFailedMembers() {
     return failedMembers;
@@ -80,12 +113,12 @@ public class RaftStatus {
     this.groupId = groupId;
   }
 
-  public long getLastTime() {
-    return lastTime;
+  public long getLastUpdateTime() {
+    return lastUpdateTime;
   }
 
   public void setLastTime() {
-    this.lastTime = System.currentTimeMillis();
+    this.lastUpdateTime = System.currentTimeMillis();
   }
 
   public String getLeaderAddress() {
@@ -167,5 +200,15 @@ public class RaftStatus {
     currentTerm = currentTerm + 1;
   }
 
+  public byte getServiceStatus() {
+    return serviceStatus;
+  }
 
+  public void setServiceStatus(byte serviceStatus) {
+    this.serviceStatus = serviceStatus;
+  }
+
+  public void setLastUpdateTime(long lastUpdateTime) {
+    this.lastUpdateTime = lastUpdateTime;
+  }
 }

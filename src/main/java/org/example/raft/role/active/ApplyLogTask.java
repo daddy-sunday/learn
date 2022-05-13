@@ -5,9 +5,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.persistence.SaveData;
-import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.RoleStatus;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.ByteUtil;
@@ -27,7 +26,7 @@ public class ApplyLogTask {
 
   private static final Logger LOG = LoggerFactory.getLogger(ApplyLogTask.class);
 
-  private BlockingQueue<AddLog[]> logQueue;
+  private BlockingQueue<LogEntries[]> logQueue;
 
   private ScheduledExecutorService executorService;
 
@@ -37,9 +36,9 @@ public class ApplyLogTask {
 
   private SaveData saveData;
 
-  private SaveLog saveLog;
+  private final byte[] appliedLogPrefixKey;
 
-  private final byte[] appliedLogKey;
+  private final byte[] dataKeyPrefix;
 
   /**
    * //todo 不是lead以后，还有必要继续写入队列里的数据吗？
@@ -47,14 +46,14 @@ public class ApplyLogTask {
    * @param roleStatus
    * @param saveData
    */
-  public ApplyLogTask(BlockingQueue<AddLog[]> dataQueue, RoleStatus roleStatus, RaftStatus raftStatus,
-      SaveData saveData, SaveLog saveLog) {
-    this.appliedLogKey = RaftUtil.generateApplyLogKey(raftStatus.getGroupId());
+  public ApplyLogTask(BlockingQueue<LogEntries[]> dataQueue, RoleStatus roleStatus, RaftStatus raftStatus,
+      SaveData saveData) {
+    this.appliedLogPrefixKey = RaftUtil.generateApplyLogKey(raftStatus.getGroupId());
+    this.dataKeyPrefix =  RaftUtil.generateDataKey(raftStatus.getGroupId());
     this.logQueue = dataQueue;
     this.roleStatus = roleStatus;
     this.raftStatus = raftStatus;
     this.saveData = saveData;
-    this.saveLog = saveLog;
     executorService = new ScheduledThreadPoolExecutor(1, e -> {
       Thread thread = new Thread(e, "SyscLogTask");
       return thread;
@@ -78,24 +77,23 @@ public class ApplyLogTask {
     long logIndex = 0;
     try {
       for (int i = 0; i < size; i++) {
-        AddLog[] addLogs = logQueue.remove();
-        for (int j = 0; j < addLogs.length; j++) {
-          saveData.assembleData(writeBatch, addLogs[i]);
-        }
+        LogEntries[] addLogs = logQueue.remove();
+        saveData.assembleData(writeBatch, addLogs, dataKeyPrefix);
         //找到最后一批数据的最后一个logindex
         if (i == size - 1) {
           logIndex = addLogs[addLogs.length - 1].getLogIndex();
         }
       }
-      saveData.writBatch(writeBatch);
 
       if (logIndex == 0) {
-        //todo  重试写入失败后退出程序 ?
+        //todo  不应该出现的情况 ?
+        LOG.error("没有找到 logIndex ，不应该出现的问题");
         System.exit(100);
       }
 
-      //提交 applied id
-      saveLog.saveLog(appliedLogKey, ByteUtil.longToBytes(logIndex));
+      //提交 applied id  随批提交应用日志记录，保证原子性
+      writeBatch.put(appliedLogPrefixKey, ByteUtil.longToBytes(logIndex));
+      saveData.writBatch(writeBatch);
       raftStatus.setLastApplied(logIndex);
     } catch (RocksDBException e) {
       LOG.error("写入data失败", e);

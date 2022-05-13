@@ -61,4 +61,13 @@ public class ByteUtil {
     }
     return len1 - len2;
   }
+
+  public static byte[] concatBytes(byte[] p1, byte[] p2){
+    int l1 = p1.length;
+    int l2 = p2.length;
+    byte[] result = new byte[l1 + l2];
+    System.arraycopy(p1,0,result,0, l1);
+    System.arraycopy(p2,0,result, l1, l2);
+    return result;
+  }
 }

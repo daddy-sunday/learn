@@ -1,9 +1,8 @@
 package org.example.raft.role;
 
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
-import org.example.raft.dto.LogEntry;
 import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.VoteRequest;
 
@@ -24,7 +23,7 @@ public interface Role {
    * @return xx
    * @param request
    */
-  RaftRpcResponest addLogRequest(AddLog request);
+  RaftRpcResponest addLogRequest(AddLogRequest request);
 
   /**
    *响应选举log请求
@@ -45,7 +44,7 @@ public interface Role {
    * @param request
    * @return
    */
-  DataResponest setData(LogEntry[] request);
+  DataResponest setData(String request);
 
 
 }

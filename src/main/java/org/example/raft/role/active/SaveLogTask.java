@@ -5,11 +5,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.TaskMaterial;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.RoleStatus;
 import org.example.raft.service.RaftStatus;
-import org.example.raft.util.ByteUtil;
+import org.example.raft.util.RaftUtil;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteBatch;
 import org.slf4j.Logger;
@@ -38,7 +39,7 @@ public class SaveLogTask {
   private SaveLog saveLog;
 
   /**
-   * //todo 不是lead以后，还有必要继续写入队列里的数据吗？
+   * todo 不是lead以后，还有必要继续写入队列里的数据吗？
    */
   public SaveLogTask(BlockingQueue<TaskMaterial> logQueue, RoleStatus roleStatus,
       RaftStatus raftStatus,
@@ -68,8 +69,11 @@ public class SaveLogTask {
       for (int i = 0; i < size; i++) {
         TaskMaterial taskDto = logQueue.remove();
         taskMaterials[i] = taskDto;
-        writeBatch.put(ByteUtil.concatLogId(raftStatus.getGroupId(), taskDto.getAddLog().getLogIndex()),
-            JSON.toJSONBytes(taskDto.getAddLog()));
+        LogEntries[] addLog = taskDto.getAddLog();
+        for (int j = 0; j < addLog.length; j++) {
+          writeBatch.put(RaftUtil.generateLogKey(raftStatus.getGroupId(), addLog[j].getLogIndex()),
+              JSON.toJSONBytes(addLog[j]));
+        }
       }
       saveLog.writBatch(writeBatch);
     } catch (RocksDBException e) {

@@ -1,7 +1,7 @@
 package org.example.raft.service;
 
 import org.example.conf.GlobalConfig;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
 import org.example.raft.persistence.DefaultSaveData;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveData;
@@ -56,7 +56,7 @@ public class RaftService {
     raftStatus.setLocalAddress(currentNode);
     raftStatus.setPersonelNum(split.length);
 
-    AddLog maxLog = saveLog.getMaxLog();
+    AddLogRequest maxLog = saveLog.getMaxLog();
     if (maxLog != null) {
       raftStatus.setCommitIndex(maxLog.getLogIndex());
       raftStatus.setCurrentTerm(maxLog.getTerm());
@@ -65,7 +65,7 @@ public class RaftService {
 
     // todo  groupId raftStatus.setGroupId();
     // 协议第一次运行时,需要的初始数据
-    AddLog addLog = new AddLog(0, 0, null, 1, 1,
+    AddLogRequest addLog = new AddLogRequest(0, 0, null, 1, 1,
         null, 0);
     saveLog.saveLog(ByteUtil.concatLogId(raftStatus.getGroupId(), 0), addLog);
 

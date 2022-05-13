@@ -17,6 +17,8 @@ public class RaftUtil {
 
   private static final byte LOG_KEY_PREFIX = 3;
 
+  private static final byte  DATA_KEY_PREFIX = 4;
+
   /**
    * commit key = 1个字节（类型）+4个字节（raft group id）
    * @param raftGroupId
@@ -55,4 +57,15 @@ public class RaftUtil {
     return byteBuffer.array();
   }
 
+  /**
+   * long key = 1个字节（类型）+4个字节（raft group id）
+   * @param raftGroupId
+   * @return
+   */
+  public static byte[] generateDataKey(int raftGroupId){
+    ByteBuffer byteBuffer = ByteBuffer.allocate(5);
+    byteBuffer.put(APPLY_LOG_KEY_PREFIX);
+    byteBuffer.putInt(raftGroupId);
+    return byteBuffer.array();
+  }
 }

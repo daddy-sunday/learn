@@ -5,7 +5,8 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.example.conf.GlobalConfig;
-import org.example.raft.dto.AddLog;
+import org.example.raft.dto.AddLogRequest;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.Row;
 import org.example.raft.util.ByteUtil;
 import org.rocksdb.Options;
@@ -41,7 +42,7 @@ public class DefaultSaveLogImpl implements SaveLog {
   }
 
   @Override
-  public void saveLog(byte[] key, AddLog raftLog) throws RocksDBException {
+  public void saveLog(byte[] key, LogEntries raftLog) throws RocksDBException {
     rocksDB.put(writeOptions,key, JSON.toJSONBytes(raftLog));
   }
 
@@ -56,19 +57,19 @@ public class DefaultSaveLogImpl implements SaveLog {
   }
 
   @Override
-  public AddLog getMaxLog() {
+  public LogEntries getMaxLog() {
     RocksIterator rocksIterator = rocksDB.newIterator();
     rocksIterator.seekToLast();
-    return JSON.parseObject(rocksIterator.value(), AddLog.class);
+    return JSON.parseObject(rocksIterator.value(), AddLogRequest.class);
   }
 
   @Override
-  public AddLog get(byte[] key) throws RocksDBException {
+  public LogEntries get(byte[] key) throws RocksDBException {
     byte[] bytes = rocksDB.get(key);
     if (bytes == null) {
       return null;
     }
-    return JSON.parseObject(bytes, AddLog.class);
+    return JSON.parseObject(bytes, AddLogRequest.class);
   }
 
   @Override
@@ -90,7 +91,7 @@ public class DefaultSaveLogImpl implements SaveLog {
   }
 
   @Override
-  public void assembleData(WriteBatch batch,byte[] key,AddLog log) throws RocksDBException {
+  public void assembleData(WriteBatch batch,byte[] key, LogEntries log) throws RocksDBException {
     batch.put(key, JSON.toJSONBytes(log));
   }
 
