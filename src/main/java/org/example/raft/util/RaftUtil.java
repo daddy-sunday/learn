@@ -8,6 +8,9 @@ import java.nio.ByteBuffer;
  */
 public class RaftUtil {
 
+  public static final long  INIT_LOG_INDEX = 5;
+  public static final long  INIT_TERM = 5;
+
   /**
    *
    */
@@ -15,18 +18,30 @@ public class RaftUtil {
 
   private static final byte APPLY_LOG_KEY_PREFIX = 2;
 
-  private static final byte LOG_KEY_PREFIX = 3;
+  private static final byte RAFT_INIT_FLAG_KEY = 3;
 
-  private static final byte  DATA_KEY_PREFIX = 4;
+  private static final byte LOG_KEY_PREFIX = 10;
+
+  private static final byte DATA_KEY_PREFIX = 20;
+
+
+  public static byte[] generateRaftInitKey(int raftGroupId) {
+    return generateCommon(raftGroupId, RAFT_INIT_FLAG_KEY);
+  }
+
 
   /**
    * commit key = 1个字节（类型）+4个字节（raft group id）
    * @param raftGroupId
    * @return
    */
-  public static byte[] generateCommitLogKey(int raftGroupId){
+  public static byte[] generateCommitLogKey(int raftGroupId) {
+    return generateCommon(raftGroupId, COMMIT_LOG_KEY_PREFIX);
+  }
+
+  private static byte[] generateCommon(int raftGroupId, byte type) {
     ByteBuffer byteBuffer = ByteBuffer.allocate(5);
-    byteBuffer.put(COMMIT_LOG_KEY_PREFIX);
+    byteBuffer.put(type);
     byteBuffer.putInt(raftGroupId);
     return byteBuffer.array();
   }
@@ -36,11 +51,8 @@ public class RaftUtil {
    * @param raftGroupId
    * @return
    */
-  public static byte[] generateApplyLogKey(int raftGroupId){
-    ByteBuffer byteBuffer = ByteBuffer.allocate(5);
-    byteBuffer.put(APPLY_LOG_KEY_PREFIX);
-    byteBuffer.putInt(raftGroupId);
-    return byteBuffer.array();
+  public static byte[] generateApplyLogKey(int raftGroupId) {
+    return generateCommon(raftGroupId, APPLY_LOG_KEY_PREFIX);
   }
 
   /**
@@ -63,9 +75,6 @@ public class RaftUtil {
    * @return
    */
   public static byte[] generateDataKey(int raftGroupId){
-    ByteBuffer byteBuffer = ByteBuffer.allocate(5);
-    byteBuffer.put(APPLY_LOG_KEY_PREFIX);
-    byteBuffer.putInt(raftGroupId);
-    return byteBuffer.array();
+    return generateCommon(raftGroupId, DATA_KEY_PREFIX);
   }
 }

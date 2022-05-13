@@ -57,7 +57,7 @@ public class DefaultSaveLogImpl implements SaveLog {
   }
 
   @Override
-  public LogEntries getMaxLog() {
+  public LogEntries getMaxLog(byte[] key) {
     RocksIterator rocksIterator = rocksDB.newIterator();
     rocksIterator.seekToLast();
     return JSON.parseObject(rocksIterator.value(), AddLogRequest.class);
@@ -70,6 +70,11 @@ public class DefaultSaveLogImpl implements SaveLog {
       return null;
     }
     return JSON.parseObject(bytes, AddLogRequest.class);
+  }
+
+  @Override
+  public byte[] getBytes(byte[] key) throws RocksDBException {
+    return rocksDB.get(key);
   }
 
   @Override

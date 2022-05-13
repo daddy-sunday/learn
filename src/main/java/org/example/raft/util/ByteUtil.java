@@ -18,6 +18,12 @@ public class ByteUtil {
     byteBuffer.putLong(0, l);
     return byteBuffer.array();
   }
+  public static Long bytesToLong(byte[] bytes){
+    ByteBuffer byteBuffer = ByteBuffer.allocate(8);
+    byteBuffer.put(bytes);
+    byteBuffer.flip();
+    return byteBuffer.getLong();
+  }
 
   public static byte[] intToBytes(int l) {
     ByteBuffer byteBuffer = ByteBuffer.allocate(4);

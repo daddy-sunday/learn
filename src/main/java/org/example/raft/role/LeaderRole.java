@@ -36,6 +36,7 @@ import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.active.SendHeartbeat;
 import org.example.raft.role.active.SyncLogTask;
 import org.example.raft.service.RaftStatus;
+import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,10 +55,6 @@ public class LeaderRole extends BaseRole implements Role {
   private long sendHeartbeatInterval;
 
   private long logIndex;
-
-  private long lastTimeTerm;
-
-  private long lastTimeLogIndex;
 
   private SyncLogTask syncLogTask;
 
@@ -88,30 +85,26 @@ public class LeaderRole extends BaseRole implements Role {
         }
       }
     });
-    LogEntries maxLog = saveLog.getMaxLog();
+    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
     logIndex = maxLog.getLogIndex();
-    lastTimeTerm = maxLog.getTerm();
-    lastTimeLogIndex = maxLog.getLogIndex();
-    //发送同步数据日志
     synLogQueue = new LinkedBlockingDeque<>(1000);
     syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus);
+    sendInitLog(maxLog.getTerm());
   }
 
   /**
-   *  //todo 发送第一个空操作心跳。保证跟随者log跟leader当前log一致。否则不提供对外服务
+   *  todo 发送第一个空操作心跳。保证跟随者log跟leader当前log一致。否则不提供对外服务
    */
-  public void sendInitLog() {
-
-    long prevLogTerm = lastTimeLogIndex + 1 == logIndex ? lastTimeTerm : raftStatus.getCurrentTerm();
+  public void sendInitLog(long prevLogTerm) {
+    logIndex += 1;
     //组装发送日志
     LogEntries[] logEntries = new LogEntries[] {new LogEntries(logIndex, raftStatus.getCurrentTerm(),
         JSON.toJSONString(new Command(DataOperationType.EMPTY)))};
-    AddLogRequest addLog = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
+    AddLogRequest addLogRequest = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
         logIndex - 1,
         prevLogTerm, logEntries, raftStatus.getCommitIndex());
     List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
-    RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(new AddLogRequest(
-        raftStatus.getCurrentTerm(), raftStatus.getLocalAddress())));
+    RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLogRequest));
     for (String address : raftStatus.getValidMembers()) {
       sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, raftStatus.getCurrentTerm()));
     }
@@ -153,7 +146,6 @@ public class LeaderRole extends BaseRole implements Role {
   public void work() {
     //初始化
     init();
-    sendInitLog();
 
     List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
     RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(new AddLogRequest(

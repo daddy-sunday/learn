@@ -11,6 +11,7 @@ import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.service.RaftStatus;
+import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,12 +36,10 @@ public class FollowRole extends BaseRole implements Role {
    */
 
   private void init() {
-
-    LogEntries maxLog = saveLog.getMaxLog();
+    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
     //接收log日志时判断，日志是否连续使用
     raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
     raftStatus.setLastTimeTerm(maxLog.getTerm());
-
     //判断超时选举用
     raftStatus.setLastTime();
   }
@@ -48,7 +47,6 @@ public class FollowRole extends BaseRole implements Role {
   @Override
   public void work() {
     init();
-
     do {
       try {
         Thread.sleep(checkTimeoutInterval);

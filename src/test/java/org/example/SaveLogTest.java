@@ -3,7 +3,7 @@ package org.example;
 import java.util.List;
 
 import org.example.conf.GlobalConfig;
-import org.example.raft.dto.AddLogRequest;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.Row;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveLog;
@@ -30,6 +30,23 @@ public class SaveLogTest {
   }
 
   @Test
+  public void testPut1() throws RocksDBException {
+    saveLog.saveLog(ByteUtil.concatLogId(1, 11), new byte[]{});
+  }
+
+  @Test
+  public void testGet1() throws RocksDBException {
+    byte[] bytes = saveLog.getBytes(ByteUtil.concatLogId(1, 11));
+    if (bytes == null) {
+      System.out.println("null");
+    }else {
+      System.out.println("not null");
+    }
+  }
+
+
+
+  @Test
   public void testGet() throws RocksDBException {
     System.out.println(saveLog.get(ByteUtil.concatLogId(1, 7)));
     System.out.println(saveLog.get(ByteUtil.concatLogId(1, 3)));
@@ -37,7 +54,7 @@ public class SaveLogTest {
 
   @Test
   public void testPut() throws RocksDBException {
-    AddLogRequest addLog = new AddLogRequest();
+    LogEntries addLog = new LogEntries();
     addLog.setTerm(11L);
     saveLog.saveLog(ByteUtil.concatLogId(1, 11), addLog);
     addLog.setTerm(12);
@@ -54,7 +71,7 @@ public class SaveLogTest {
 
   @Test
   public void testPutReplace() throws RocksDBException {
-    AddLogRequest addLog = new AddLogRequest();
+    LogEntries addLog = new LogEntries();
     addLog.setTerm(117);
     saveLog.saveLog(ByteUtil.concatLogId(1, 116), addLog);
   }
@@ -64,7 +81,7 @@ public class SaveLogTest {
     WriteOptions options = new WriteOptions();
     options.setDisableWAL(true);
 
-    AddLogRequest addLog = new AddLogRequest();
+    LogEntries addLog = new LogEntries();
     addLog.setTerm(117);
     saveLog.saveLog(ByteUtil.concatLogId(1, 117), addLog);
   }
@@ -77,7 +94,7 @@ public class SaveLogTest {
 
   @Test
   public void testGetMaxIndexLog() {
-    System.out.println(saveLog.getMaxLog().getTerm());
+    System.out.println(saveLog.getMaxLog(ByteUtil.concatLogId(1, 116)).getTerm());
   }
 
   @Test

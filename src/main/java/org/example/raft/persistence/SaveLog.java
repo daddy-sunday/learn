@@ -20,9 +20,11 @@ public interface SaveLog  {
 
   void deleteRange(byte[] start,byte[] end) throws RocksDBException;
 
-  LogEntries getMaxLog();
+  LogEntries getMaxLog(byte[] key);
 
   LogEntries get(byte[] key) throws RocksDBException;
+
+  byte[] getBytes(byte[] key) throws RocksDBException;
 
   RocksIterator getIterator();
 

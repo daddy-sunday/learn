@@ -22,14 +22,14 @@ import com.alibaba.fastjson.JSON;
  *@author zhouzhiyuan
  *@date 2022/4/2
  */
-public class DefaultSaveData implements SaveData {
+public class DefaultSaveDataImpl implements SaveData {
 
   private RocksDB rocksDB;
 
   private WriteOptions writeOptions;
 
 
-  public DefaultSaveData(GlobalConfig config) throws RocksDBException {
+  public DefaultSaveDataImpl(GlobalConfig config) throws RocksDBException {
     File file = new File(config.getLogPath());
     if (!file.exists()) {
       file.mkdirs();
@@ -88,6 +88,8 @@ public class DefaultSaveData implements SaveData {
             for (int i1 = 0; i1 < rows.length; i1++) {
               batch.delete(ByteUtil.concatBytes(prefixKey,rows[i].getKey()));
             }
+            break;
+          case DataOperationType.EMPTY:
             break;
           default:
         }

@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.example.raft.constant.TaskType;
-import org.example.raft.dto.LogEntries;
 import org.example.raft.util.ByteUtil;
 import org.junit.Test;
 import org.rocksdb.Options;
@@ -59,51 +58,6 @@ public class AppTest {
     System.out.println(0 % (300 - 150 + 1) + 150);
   }
 
-
-  @Test
-  public void testEfficient2() {
-    LogEntries[] raftLogs = new LogEntries[1000000];
-    LogEntries log = new LogEntries();
-    log.setCmd(1000000);
-    long startTime = System.currentTimeMillis();
-    Integer a;
-    Integer b = log.getCmd();
-    for (LogEntries raftLog : raftLogs) {
-      if (true) {
-        a = log.getCmd();
-        a = log.getCmd();
-        a = log.getCmd();
-        a = log.getCmd();
-        a = log.getCmd();
-      }
-    }
-    long endTime = System.currentTimeMillis();
-    System.out.println(endTime - startTime);
-  }
-
-  /**
-   * 直接引用>类名.引用>get set 方法返回引用
-   */
-  @Test
-  public void testEfficient3() {
-    LogEntries[] raftLogs = new LogEntries[1000000];
-    LogEntries log = new LogEntries();
-    log.setCmd(1000000);
-    long startTime = System.currentTimeMillis();
-    Integer a;
-    int b = log.getCmd();
-    for (LogEntries raftLog : raftLogs) {
-      if (true) {
-        a = raftLogs.length;
-        a = raftLogs.length;
-        a = raftLogs.length;
-        a = raftLogs.length;
-        a = raftLogs.length;
-      }
-    }
-    long endTime = System.currentTimeMillis();
-    System.out.println(endTime - startTime);
-  }
 
   @Test
   public void testRocksDB() throws RocksDBException {

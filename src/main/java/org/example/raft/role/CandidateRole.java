@@ -21,6 +21,7 @@ import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.active.SendVote;
 import org.example.raft.service.RaftStatus;
+import org.example.raft.util.RaftUtil;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +106,7 @@ public class CandidateRole extends BaseRole implements Role {
   public void getSendVote(VoteRequest request) throws RocksDBException {
     request.setCandidateId(raftStatus.getLocalAddress());
     request.setTerm(raftStatus.getCurrentTerm());
-    LogEntries maxLog = saveLog.getMaxLog();
+    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
     request.setLastLogIndex(maxLog.getLogIndex());
     request.setLastLogTerm(maxLog.getTerm());
   }

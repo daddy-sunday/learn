@@ -19,9 +19,19 @@ public class RaftStatus {
   private volatile byte serviceStatus = 0;
 
   /**
+   * 当前raft是否初始化
+   */
+  private boolean initFlag = false;
+
+  /**
    * 为后面的多 raftgroup 做准备，先给个默认值
    */
   private int groupId = 1;
+
+
+  private byte[] startKey;
+
+  private byte[] endKey;
 
   /**
    *  data persistence status
@@ -80,6 +90,30 @@ public class RaftStatus {
    */
   private volatile long lastTimeTerm;
 
+
+  public boolean isInitFlag() {
+    return initFlag;
+  }
+
+  public void setInitFlag(boolean initFlag) {
+    this.initFlag = initFlag;
+  }
+
+  public byte[] getStartKey() {
+    return startKey;
+  }
+
+  public void setStartKey(byte[] startKey) {
+    this.startKey = startKey;
+  }
+
+  public byte[] getEndKey() {
+    return endKey;
+  }
+
+  public void setEndKey(byte[] endKey) {
+    this.endKey = endKey;
+  }
 
   public long getLastTimeLogIndex() {
     return lastTimeLogIndex;
