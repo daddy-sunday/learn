@@ -1,9 +1,14 @@
 package org.example;
 
+import static java.lang.Thread.sleep;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -25,6 +30,33 @@ import org.rocksdb.WriteBatch;
  * Unit test for simple App.
  */
 public class AppTest {
+
+
+  @Test
+  public void StringBuilder(){
+
+    Map<String,String>  a = new HashMap<>();
+    a.put("a","19910919");
+    System.out.println(concatPartitionParameter(a));
+
+  }
+
+
+  private String concatPartitionParameter(Map<String, String> partitionValues) {
+    if (partitionValues.isEmpty()) {
+      return null;
+    }
+    StringBuilder builder = new StringBuilder();
+    for (Entry<String, String> entry : partitionValues.entrySet()) {
+      builder.append(entry.getKey())
+          .append("=")
+          .append(entry.getValue())
+          .append(",");
+    }
+    builder.delete(builder.length()-1,builder.length());
+    return builder.toString();
+  }
+
   /**
    * Rigorous Test :-)
    */
@@ -69,7 +101,6 @@ public class AppTest {
     rocksDB.put("小明".getBytes(), "人类".getBytes());
     WriteBatch writeBatch = new WriteBatch();
 
-
     System.out.println(rocksDB.get("小明".getBytes()));
     System.out.println(rocksDB.get("1111122".getBytes()));
   }
@@ -77,9 +108,48 @@ public class AppTest {
 
   @Test
   public void testThreadPollExecutor() {
-    int a =3,b=2;
-    System.out.println(a-b<b);
+    int a = 3, b = 2;
+    System.out.println(a - b < b);
   }
+
+  @Test
+  public void clientShutDown() throws InterruptedException {
+
+    ExecutorService executor = Executors.newFixedThreadPool(10);
+
+    List<SendMessage> list = new ArrayList<>();
+
+    for (int i = 0; i < 10; i++) {
+      list.add(new SendMessage("线程 " + i));
+    }
+
+    List<Future<Boolean>> result = null;
+    for (int i = 0; i < 10; i++) {
+      long starTime = System.currentTimeMillis();
+      try {
+        result = executor.invokeAll(list, 10000, TimeUnit.MILLISECONDS);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+
+      int voteResult = 0;
+
+/*      for (Future<Boolean> booleanFuture : result) {
+        try {
+          if (booleanFuture.get()) {
+            voteResult++;
+          }
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }*/
+    }
+    executor.shutdownNow();
+    executor.awaitTermination(10, TimeUnit.DAYS);
+    long endTime = System.currentTimeMillis();
+    System.out.println("完成值为：");
+  }
+
 
   @Test
   public void client() {
@@ -113,10 +183,69 @@ public class AppTest {
         }
       }
       long endTime = System.currentTimeMillis();
-      System.out.println("完成值为：" + voteResult+" 完成时间"+(endTime-starTime));
+      System.out.println("完成值为：" + voteResult + " 完成时间" + (endTime - starTime));
+    }
+  }
+
+  @Test
+  public void threadJoinTest() throws InterruptedException {
+    SendMessageJoinTest sendMessage = new SendMessageJoinTest(null);
+    Thread thread = new Thread(sendMessage);
+    thread.start();
+    try {
+      thread.join(3000);
+      System.out.println(sendMessage);
+    } catch (InterruptedException e) {
+      System.out.println("这是啥中断");
     }
 
+    // Thread.sleep(getVoteTimeOut());
+    sleep(6000);
   }
+
+
+  class SendMessageJoinTest implements Runnable {
+    private String threadName;
+
+    public SendMessageJoinTest(String threadName) {
+      this.threadName = threadName;
+    }
+
+    @Override
+    public void run() {
+     /* RaftRpcRequest rpcRequest = new RaftRpcRequest();
+      rpcRequest.setType(threadName);
+      RpcClient rpcClient = new RpcClient();
+      rpcClient.init();
+      for (int i = 0; i < 1000; i++) {
+        try {
+          Object o = rpcClient.invokeSync("127.0.0.1:8080", rpcRequest, 1000);
+          System.out.println(threadName + " 发送了消息");
+          Thread.sleep(1000);
+        } catch (RemotingException e) {
+          e.printStackTrace();
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+      }*/
+      try {
+        // Thread.sleep(getVoteTimeOut());
+        sleep(6000);
+        threadName = "我可以被显示吗";
+        System.out.println(this);
+      } catch (InterruptedException e) {
+        System.out.println("我被打扰了");
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "SendMessageJoinTest{" +
+          "threadName='" + threadName + '\'' +
+          '}';
+    }
+  }
+
 
   class SendMessage implements Callable<Boolean> {
     private String threadName;
@@ -143,8 +272,9 @@ public class AppTest {
         }
       }*/
       try {
-        Thread.sleep(getVoteTimeOut());
+        sleep(getVoteTimeOut());
       } catch (InterruptedException e) {
+        System.out.println("我被打扰了");
       }
       return true;
     }

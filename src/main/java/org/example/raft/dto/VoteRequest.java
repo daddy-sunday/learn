@@ -52,4 +52,14 @@ public class VoteRequest {
   public void setLastLogTerm(long lastLogTerm) {
     this.lastLogTerm = lastLogTerm;
   }
+
+  @Override
+  public String toString() {
+    return "VoteRequest{" +
+        "term=" + term +
+        ", candidateId='" + candidateId + '\'' +
+        ", lastLogIndex=" + lastLogIndex +
+        ", lastLogTerm=" + lastLogTerm +
+        '}';
+  }
 }

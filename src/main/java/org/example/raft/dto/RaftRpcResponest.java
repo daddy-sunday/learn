@@ -8,11 +8,13 @@ import java.io.Serializable;
  */
 public class RaftRpcResponest implements Serializable {
   private long term;
-  private Boolean success;
+  private boolean status;
+  private byte failCause;
+  private String message;
 
-  public RaftRpcResponest(long term, Boolean succcess) {
+  public RaftRpcResponest(long term, boolean succcess) {
     this.term = term;
-    this.success = succcess;
+    this.status = succcess;
   }
 
   public long getTerm() {
@@ -23,11 +25,41 @@ public class RaftRpcResponest implements Serializable {
     this.term = term;
   }
 
-  public Boolean getSuccess() {
-    return success;
+  public boolean getStatus() {
+    return status;
   }
 
-  public void setSuccess(Boolean success) {
-    this.success = success;
+  public void setStatus(boolean status) {
+    this.status = status;
+  }
+
+  public boolean isStatus() {
+    return status;
+  }
+
+  public byte getFailCause() {
+    return failCause;
+  }
+
+  public void setFailCause(byte failCause) {
+    this.failCause = failCause;
+  }
+
+  public String getMessage() {
+    return message;
+  }
+
+  public void setMessage(String message) {
+    this.message = message;
+  }
+
+  @Override
+  public String toString() {
+    return "RaftRpcResponest{" +
+        "term=" + term +
+        ", status=" + status +
+        ", failCause=" + failCause +
+        ", message='" + message + '\'' +
+        '}';
   }
 }

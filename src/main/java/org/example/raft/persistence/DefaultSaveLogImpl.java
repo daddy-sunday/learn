@@ -5,7 +5,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.example.conf.GlobalConfig;
-import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.Row;
 import org.example.raft.util.ByteUtil;
@@ -57,10 +56,15 @@ public class DefaultSaveLogImpl implements SaveLog {
   }
 
   @Override
+  public void delete(byte[] key) throws RocksDBException {
+    rocksDB.delete(key);
+  }
+
+  @Override
   public LogEntries getMaxLog(byte[] key) {
     RocksIterator rocksIterator = rocksDB.newIterator();
     rocksIterator.seekToLast();
-    return JSON.parseObject(rocksIterator.value(), AddLogRequest.class);
+    return JSON.parseObject(rocksIterator.value(), LogEntries.class);
   }
 
   @Override
@@ -69,7 +73,7 @@ public class DefaultSaveLogImpl implements SaveLog {
     if (bytes == null) {
       return null;
     }
-    return JSON.parseObject(bytes, AddLogRequest.class);
+    return JSON.parseObject(bytes, LogEntries.class);
   }
 
   @Override

@@ -33,10 +33,14 @@ import org.example.raft.dto.TaskMaterial;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
+import org.example.raft.role.active.ChaseAfterLogTask;
+import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.role.active.SendHeartbeat;
 import org.example.raft.role.active.SyncLogTask;
 import org.example.raft.service.RaftStatus;
+import org.example.raft.util.ByteUtil;
 import org.example.raft.util.RaftUtil;
+import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,16 +64,22 @@ public class LeaderRole extends BaseRole implements Role {
 
   private BlockingQueue<TaskMaterial> synLogQueue;
 
+  private ChaseAfterLogTask chaseAfterLogTask;
+
+  private final byte[] datakeyprefix;
 
   /**
    * lead 繁忙状态 ,可以通过获取 执行线程的队列和线程使用情况来标定繁忙程度，便于外部管理调度
    */
   public long busynessStatus = 0;
 
+
   public LeaderRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
-      GlobalConfig conf) {
-    super(saveData, saveLogInterface, raftStatus, roleStatus);
+      GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
+      SaveLogTask saveLogTask) {
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask);
     sendHeartbeatInterval = conf.getSendHeartbeatInterval();
+    this.datakeyprefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
   }
 
   void init() {
@@ -89,53 +99,68 @@ public class LeaderRole extends BaseRole implements Role {
     logIndex = maxLog.getLogIndex();
     synLogQueue = new LinkedBlockingDeque<>(1000);
     syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus);
-    sendInitLog(maxLog.getTerm());
+    chaseAfterLogTask = new ChaseAfterLogTask(raftStatus, roleStatus, saveLog);
+
+    executorService.submit(new SentFirstLog(maxLog.getTerm()));
   }
 
-  /**
-   *  todo 发送第一个空操作心跳。保证跟随者log跟leader当前log一致。否则不提供对外服务
-   */
-  public void sendInitLog(long prevLogTerm) {
-    logIndex += 1;
-    //组装发送日志
-    LogEntries[] logEntries = new LogEntries[] {new LogEntries(logIndex, raftStatus.getCurrentTerm(),
-        JSON.toJSONString(new Command(DataOperationType.EMPTY)))};
-    AddLogRequest addLogRequest = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
-        logIndex - 1,
-        prevLogTerm, logEntries, raftStatus.getCommitIndex());
-    List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
-    RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLogRequest));
-    for (String address : raftStatus.getValidMembers()) {
-      sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, raftStatus.getCurrentTerm()));
+  class SentFirstLog implements Runnable{
+    private long prevLogTerm;
+
+    public SentFirstLog(long prevLogTerm) {
+      this.prevLogTerm = prevLogTerm;
     }
-    //开始发送日志
-    try {
-      byte count = 1;
-      LOG.info("send heartbeat");
-      List<Future<SynchronizeLogResult>> futures = executorService
-          .invokeAll(sendHeartbeats, 10000, TimeUnit.MILLISECONDS);
-      for (Future<SynchronizeLogResult> future : futures) {
-        if (future.get().isSuccess()) {
-          count++;
-        } else {
-          //移除同步失败的节点，并使用单独线程追赶落后的日志。
-          String address = future.get().getAddress();
-          raftStatus.getValidMembers().remove(address);
-          raftStatus.getFailedMembers().add(new ChaseAfterLog(address, logIndex));
-        }
+
+    @Override
+    public void run() {
+      logIndex += 1;
+      //组装发送日志
+      LogEntries logEntrie = new LogEntries(logIndex, raftStatus.getCurrentTerm(),
+          JSON.toJSONString(new Command(DataOperationType.EMPTY)));
+      LogEntries[] logEntries = new LogEntries[] {logEntrie};
+      AddLogRequest addLogRequest = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
+          logIndex - 1,
+          prevLogTerm, logEntries, raftStatus.getCommitIndex());
+      List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
+      RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLogRequest));
+      for (String address : raftStatus.getValidMembers()) {
+        sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, raftStatus.getCurrentTerm()));
       }
 
-      if (raftStatus.getPersonelNum() - count < count) {
-        raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
-      } else {
-        //todo 先不考虑 初始化失败的问题。有时间在处理
-        LOG.error("leader initlog error：synlog  failed");
+      //开始发送日志
+      try {
+        saveLog.saveLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), logIndex), JSON.toJSONBytes(logEntrie));
+        byte count = 1;
+        LOG.info("send heartbeat");
+        List<Future<SynchronizeLogResult>> futures = executorService
+            .invokeAll(sendHeartbeats, 10000, TimeUnit.MILLISECONDS);
+        for (Future<SynchronizeLogResult> future : futures) {
+          if (future.get().isSuccess()) {
+            count++;
+          } else {
+            //移除同步失败的节点，并使用单独线程追赶落后的日志。
+            String address = future.get().getAddress();
+            raftStatus.getValidMembers().remove(address);
+            raftStatus.getFailedMembers().add(new ChaseAfterLog(address, logIndex));
+          }
+        }
+
+        if (raftStatus.getPersonelNum() - count < count) {
+          raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
+        } else {
+          chaseAfterLogTask.run();
+          //追log日志失败了退出执行
+          if (raftStatus.getFailedMembers().size() > 0) {
+            LOG.error("leader initlog error：synlog  failed");
+            System.exit(100);
+          }
+        }
+        chaseAfterLogTask.start();
+      } catch (InterruptedException | ExecutionException | RocksDBException e) {
+        LOG.error("initlog error：" + e.getMessage());
+        //todo  直接退出了?
         System.exit(100);
       }
-    } catch (InterruptedException | ExecutionException e) {
-      LOG.error("initlog error：" + e.getMessage());
-      //todo  直接退出了?
-      System.exit(100);
     }
   }
 
@@ -144,7 +169,7 @@ public class LeaderRole extends BaseRole implements Role {
    */
   @Override
   public void work() {
-    //初始化
+
     init();
 
     List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
@@ -163,11 +188,36 @@ public class LeaderRole extends BaseRole implements Role {
         e.printStackTrace();
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.LEADER);
+
+    exit();
+  }
+
+  private void exit() {
+    raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
     executorService.shutdownNow();
     executorService = null;
+
     syncLogTask.stop();
     syncLogTask = null;
+    //清空没有消费的synLogQueue
+    while (!synLogQueue.isEmpty()) {
+      TaskMaterial poll = synLogQueue.poll();
+      if (poll != null) {
+        poll.failed();
+      }
+    }
+
+    chaseAfterLogTask.stop();
+    chaseAfterLogTask = null;
+    //清空失败队列
+    LinkedBlockingDeque<ChaseAfterLog> failedMembers = raftStatus.getFailedMembers();
+    while (!failedMembers.isEmpty()) {
+      failedMembers.poll();
+    }
+
+    stopWriteLog();
   }
+
 
   /**
    * leader 不接受添加日志请求
@@ -191,7 +241,15 @@ public class LeaderRole extends BaseRole implements Role {
 
   @Override
   public DataResponest getData(GetData request) {
-    return null;
+    inService();
+    byte[] value;
+    try {
+      value = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
+    } catch (RocksDBException e) {
+      LOG.error("查询数据失败：" + e.getMessage(), e);
+      return new DataResponest(StatusCode.SYSTEMEXCEPTION, null);
+    }
+    return new DataResponest(StatusCode.SUCCESS, new String(value));
   }
 
   /**
@@ -200,6 +258,7 @@ public class LeaderRole extends BaseRole implements Role {
    */
   @Override
   public DataResponest setData(String request) {
+    inService();
     CountDownLatch countDownLatch = new CountDownLatch(2);
     AtomicInteger ticketNum = new AtomicInteger();
     TaskMaterial taskMaterial;

@@ -8,7 +8,7 @@ import org.example.raft.dto.Row;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.util.ByteUtil;
-import org.junit.Before;
+import org.example.raft.util.RaftUtil;
 import org.junit.Test;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
@@ -22,16 +22,58 @@ public class SaveLogTest {
 
   private SaveLog saveLog;
 
-  @Before
+  @Test
   public void init() throws RocksDBException {
     GlobalConfig config = new GlobalConfig();
-    config.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\test");
+    config.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log2");
     saveLog = new DefaultSaveLogImpl(config);
+    saveLog.delete(RaftUtil.generateLogKey(1, 7));
+  }
+
+
+  @Test
+  public void findAll() throws RocksDBException {
+    String logPath = "C:\\Users\\zhouz\\Desktop\\raft\\log";
+    System.out.println(logPath);
+     traverseLogSave(logPath);
+    for (int i = 2; i <= 5; i++) {
+      System.out.println(logPath + i);
+      traverseLogSave(logPath+i);
+    }
+
+    String dataPath = "C:\\Users\\zhouz\\Desktop\\raft\\data";
+    System.out.println(dataPath);
+    traverseDataSave(dataPath);
+    for (int i = 2; i <= 5; i++) {
+      System.out.println(dataPath + i);
+      traverseDataSave(dataPath+i);
+    }
+  }
+
+  private void traverseLogSave(String logPath) throws RocksDBException {
+    GlobalConfig config = new GlobalConfig();
+    config.setLogPath(logPath);
+    saveLog = new DefaultSaveLogImpl(config);
+
+    RocksIterator iterator = saveLog.getIterator();
+    for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+      System.out.println(TestByteUtil.parseLogKey(iterator.key()) + " = " + new String(iterator.value()));
+    }
+  }
+
+  private void traverseDataSave(String logPath) throws RocksDBException {
+    GlobalConfig config = new GlobalConfig();
+    config.setLogPath(logPath);
+    saveLog = new DefaultSaveLogImpl(config);
+    RocksIterator iterator = saveLog.getIterator();
+    for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+      System.out.println(TestByteUtil.parseDataKey(iterator.key()) + " = " + new String(iterator.value()));
+    }
   }
 
   @Test
   public void testPut1() throws RocksDBException {
-    saveLog.saveLog(ByteUtil.concatLogId(1, 11), new byte[]{});
+    saveLog.saveLog(ByteUtil.concatLogId(1, 11), new byte[] {});
   }
 
   @Test

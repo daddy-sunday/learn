@@ -16,7 +16,7 @@ public interface Role {
   /**
    * 不同的角色做不同的事情
    */
-  void work();
+  void  work();
 
   /**
    * 响应追加log请求

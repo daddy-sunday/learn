@@ -13,6 +13,8 @@ import org.rocksdb.WriteBatch;
  */
 public interface SaveData {
 
+  void put(byte[] key,byte[] value) throws RocksDBException;
+
   byte[] getValue(byte[] key) throws RocksDBException;
 
   void delete(byte[] key) throws RocksDBException;

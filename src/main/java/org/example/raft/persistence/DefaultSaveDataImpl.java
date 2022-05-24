@@ -30,13 +30,18 @@ public class DefaultSaveDataImpl implements SaveData {
 
 
   public DefaultSaveDataImpl(GlobalConfig config) throws RocksDBException {
-    File file = new File(config.getLogPath());
+    File file = new File(config.getDataPath());
     if (!file.exists()) {
       file.mkdirs();
     }
-    rocksDB = RocksDB.open(config.getLogPath());
+    rocksDB = RocksDB.open(config.getDataPath());
     writeOptions = new WriteOptions();
     writeOptions.setDisableWAL(true);
+  }
+
+  @Override
+  public void put(byte[] key, byte[] value) throws RocksDBException {
+    rocksDB.put(key,value);
   }
 
   @Override

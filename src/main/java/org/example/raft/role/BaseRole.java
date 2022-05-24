@@ -2,9 +2,9 @@ package org.example.raft.role;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.example.raft.constant.ServiceStatus;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.LogEntries;
@@ -12,7 +12,6 @@ import org.example.raft.dto.TaskMaterial;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
-import org.example.raft.role.active.ApplyLogTask;
 import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
@@ -40,20 +39,29 @@ public abstract class BaseRole implements Role {
 
   BlockingQueue<TaskMaterial> saveLogQueue;
 
-  ApplyLogTask applyLogTask;
-
   SaveLogTask saveLogTask;
 
 
-  public BaseRole(SaveData saveData, SaveLog saveLog, RaftStatus raftStatus, RoleStatus roleStatus) {
+  public BaseRole(SaveData saveData, SaveLog saveLog, RaftStatus raftStatus, RoleStatus roleStatus,
+      BlockingQueue<LogEntries[]> applyLogQueue,
+      BlockingQueue<TaskMaterial> saveLogQueue, SaveLogTask saveLogTask) {
     this.raftStatus = raftStatus;
     this.roleStatus = roleStatus;
     this.saveLog = saveLog;
     this.saveData = saveData;
-    this.applyLogQueue = new LinkedBlockingDeque<>(1000);
-    this.applyLogTask = new ApplyLogTask(applyLogQueue, roleStatus, raftStatus, saveData);
-    this.saveLogQueue =  new LinkedBlockingDeque<>(1000);
-    this.saveLogTask = new SaveLogTask(saveLogQueue, roleStatus, raftStatus, saveLog);
+    this.applyLogQueue = applyLogQueue;
+    this.saveLogQueue = saveLogQueue;
+    this.saveLogTask = saveLogTask;
+  }
+
+  public void inService() {
+    while (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
+      try {
+        LOG.debug("当前角色不在服务状态，等待。状态：" + raftStatus.getServiceStatus() + "角色：" + roleStatus.getNodeStatus());
+        Thread.sleep(10);
+      } catch (InterruptedException ignored) {
+      }
+    }
   }
 
   /**
@@ -66,14 +74,20 @@ public abstract class BaseRole implements Role {
    */
   synchronized boolean voteRequestProcess(VoteRequest request) {
     if (request.getTerm() < raftStatus.getCurrentTerm()) {
+      LOG.debug("不能投票: 请求的term小于当前的term ：" + request.getTerm() + "<" + raftStatus.getCurrentTerm());
       return false;
     }
-    if ((raftStatus.getVotedFor() == null || raftStatus.getVotedFor().equals(request.getCandidateId()))
-        && request.getLastLogIndex() >= raftStatus.getCommitIndex()) {
-      raftStatus.setVotedFor(request.getCandidateId());
-      LOG.info("投票给: " + request.getCandidateId() + " " + request.getTerm());
-      return true;
+    boolean idVote = raftStatus.getVotedFor() == null || raftStatus.getVotedFor().equals(request.getCandidateId());
+    if (idVote) {
+      if (request.getLastLogIndex() >= raftStatus.getCommitIndex()) {
+        raftStatus.setVotedFor(request.getCandidateId());
+        LOG.debug("投票给: " + request.getCandidateId() + " " + request.getTerm());
+        return true;
+      } else {
+        LOG.debug("不能投票，请求的logIndex小于当前的logindex：" + request.getLastLogIndex() + ">=" + raftStatus.getCommitIndex());
+      }
     }
+    LOG.debug("已经投过票了,不能重复投票：" + raftStatus.getVotedFor());
     return false;
   }
 
@@ -90,13 +104,13 @@ public abstract class BaseRole implements Role {
    */
   boolean addLogProcess(AddLogRequest request) {
     if (request.getTerm() < raftStatus.getCurrentTerm()) {
-      LOG.error("receiving log: term of a leader less than  term of a follow");
+      LOG.error("接收日志：接收到的term小于当前term " + request.getTerm() + "<" + raftStatus.getCurrentTerm());
       return false;
     }
     LogEntries[] entries = request.getEntries();
     if (entries == null) {
       //接收到心跳日志，更新超时时间
-      LOG.info("receiving log: term " + request.getTerm());
+      LOG.debug("接收日志: 更新follow超时时间");
       raftStatus.setLastTime();
       return true;
     }
@@ -107,23 +121,24 @@ public abstract class BaseRole implements Role {
         //判断接收到的日志的上一条日志是否匹配
         LogEntries existLog = saveLog.get(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getPrevLogIndex()));
         if (existLog.getTerm() != request.getPreLogTerm()) {
-          LOG.error("receiving log: previous log do not match");
+          LOG.error("接收日志的上一条log 的term不匹配。 请求的term"+request.getPreLogTerm()+" 当前的term："+existLog.getTerm());
           return false;
         } else {
-          LOG.warn("receiving log: log conflict  " + request.toString());
-          //todo 修改savelogtask任务，不在消费log。
-          //todo 修改savelogtask任务 固定消费从某个key开始的log。
+          LOG.warn("日志冲突 " + request.toString());
+          raftStatus.setServiceStatus(ServiceStatus.WAIT_RENEW);
+          //停止写log任务
+          stopWriteLog();
           //清空失效的log
           saveLog.deleteRange(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getLogIndex()),
               RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
-          //todo 修改savelogtask任务，开始消费log
+          raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
           //todo 存储的数据需要重做，因为没办法对已经应用的log数据回滚
         }
       } else {
         //判断接收到的log日志是否连续
         if (request.getPrevLogIndex() != raftStatus.getLastTimeLogIndex()
             || request.getPreLogTerm() != raftStatus.getLastTimeTerm()) {
-          LOG.error("receiving log: previous log do not match");
+          LOG.error("接收日志不匹配"+ request.toString()+" 预期的值: "+ raftStatus.getLastTimeLogIndex()+" "+ raftStatus.getLastTimeTerm());
           return false;
         }
       }
@@ -158,4 +173,23 @@ public abstract class BaseRole implements Role {
 
   @Override
   public abstract DataResponest setData(String request);
+
+  void stopWriteLog() {
+    //清空没有消费的savelog
+    while (!saveLogQueue.isEmpty()) {
+      TaskMaterial poll = saveLogQueue.poll();
+      if (poll != null) {
+        poll.failed();
+      }
+    }
+    //等待一次savelogtask完成,保证当前raft日志是静止的
+    long execTaskCount = saveLogTask.getExecTaskCount();
+    while (!saveLogTask.taskComplete(execTaskCount)) {
+      try {
+        Thread.sleep(10);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  }
 }

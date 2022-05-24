@@ -6,7 +6,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -57,21 +56,16 @@ public class SyncLogTask {
     executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum(), raftStatus.getPersonelNum(),
         3600L, TimeUnit.MILLISECONDS,
         new ArrayBlockingQueue<Runnable>(100), e -> {
-      Thread thread = new Thread(e, "sendLog");
-      return thread;
-    }, new RejectedExecutionHandler() {
-      @Override
-      public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        try {
-          executor.getQueue().put(r);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
+      return new Thread(e, "sendLog");
+    }, (r, executor) -> {
+      try {
+        executor.getQueue().put(r);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
       }
     });
     this.scheduler = new ScheduledThreadPoolExecutor(1, e -> {
-      Thread thread = new Thread(e, "schedulerSyncLogTask");
-      return thread;
+      return new Thread(e, "schedulerSyncLogTask");
     });
     this.queue = queue;
     scheduler.scheduleAtFixedRate(this::run, 0, 50, TimeUnit.MILLISECONDS);
@@ -85,30 +79,33 @@ public class SyncLogTask {
     }
     TaskMaterial[] taskMaterials = new TaskMaterial[size];
     LogEntries[] logEntries = new LogEntries[size];
-    //todo优化  计算发送消息大小。消息太大需要分批发送
-    for (int i = 0; i < size; i++) {
-      TaskMaterial material = queue.remove();
-      taskMaterials[i] = material;
-      logEntries[i] = material.getAddLog()[0];
-    }
-
-    long logIndex = logEntries[0].getLogIndex();
-  //leadeer初始时已经同步过log，所以 preLogTerm 是当前leader的任期
-    AddLogRequest addLog = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
-        logIndex - 1,
-        raftStatus.getCurrentTerm(), logEntries, raftStatus.getCommitIndex());
-
-    //发送同步log
-    List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
-    for (String address : raftStatus.getValidMembers()) {
-      sendHeartbeats.add(
-          new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLog)), address,
-              raftStatus.getCurrentTerm()));
-    }
     int count = 0;
     try {
+      //todo优化  计算发送消息大小。消息太大需要分批发送
+      for (int i = 0; i < size; i++) {
+        TaskMaterial material = queue.remove();
+        taskMaterials[i] = material;
+        logEntries[i] = material.getAddLog()[0];
+      }
+
+      long logIndex = logEntries[0].getLogIndex();
+      //leadeer初始时已经同步过log，所以 preLogTerm 是当前leader的任期
+      AddLogRequest addLog = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
+          logIndex - 1,
+          raftStatus.getCurrentTerm(), logEntries, raftStatus.getCommitIndex());
+
+      //发送同步log
+      List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
+      for (String address : raftStatus.getValidMembers()) {
+        sendHeartbeats.add(
+            new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLog)), address,
+                raftStatus.getCurrentTerm()));
+      }
+
       List<Future<SynchronizeLogResult>> futures = executorService
           .invokeAll(sendHeartbeats, 10000, TimeUnit.MILLISECONDS);
+
+// todo 优化，改为后台登台结果，不能影响发送
       for (Future<SynchronizeLogResult> future : futures) {
         if (future.get().isSuccess()) {
           count++;
@@ -121,6 +118,12 @@ public class SyncLogTask {
       }
     } catch (Exception e) {
       LOG.error(e.getMessage(), e);
+      for (int i = 0; i < size; i++) {
+        if (taskMaterials[i]!= null) {
+          taskMaterials[i].failed();
+        }
+      }
+      return;
     }
 
     //一批任务更新一次commitLogIndex
@@ -132,6 +135,10 @@ public class SyncLogTask {
     }
   }
 
+
+  public void writeResult(){
+
+  }
 
   public void stop() {
     scheduler.shutdownNow();

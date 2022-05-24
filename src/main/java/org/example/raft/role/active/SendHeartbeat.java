@@ -40,16 +40,20 @@ public class SendHeartbeat implements Callable<SynchronizeLogResult> {
    */
   @Override
   public SynchronizeLogResult call() {
+    SynchronizeLogResult result;
     try {
       RaftRpcResponest raftRpcResponest = DefaultRpcClient.sendMessage(sendAddress, raftRpcRequest);
       if (raftRpcResponest.getTerm() > term) {
-        LOG.info("leader->send heartbeat : receive term > current term ,leader to follower");
         roleStatus.leaderToFollower();
+        result = new SynchronizeLogResult(sendAddress, raftRpcResponest.getStatus(),StatusCode.MIN_TERM);
+        LOG.info("leader->send heartbeat : receive term > current term ,leader to follower");
+      }else {
+        result = new SynchronizeLogResult(sendAddress, raftRpcResponest.getStatus(),StatusCode.NOT_MATCH_LOG_INDEX);
       }
-      return new SynchronizeLogResult(sendAddress, raftRpcResponest.getSuccess());
     } catch (Exception e) {
       LOG.warn("leader->send heartbeat :" + e.getMessage() + " address: " + sendAddress);
+      result =  new SynchronizeLogResult(sendAddress, false, StatusCode.EXCEPTION);
     }
-    return new SynchronizeLogResult(sendAddress, false, StatusCode.EXCEPTION);
+    return result;
   }
 }

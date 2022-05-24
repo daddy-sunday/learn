@@ -1,12 +1,16 @@
 package org.example.raft.service;
 
+import java.util.concurrent.BlockingQueue;
+
 import org.example.conf.GlobalConfig;
 import org.example.raft.constant.MessageType;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataRequest;
 import org.example.raft.dto.GetData;
+import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcRequest;
 import org.example.raft.dto.RaftRpcResponest;
+import org.example.raft.dto.TaskMaterial;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
@@ -15,6 +19,7 @@ import org.example.raft.role.FollowRole;
 import org.example.raft.role.LeaderRole;
 import org.example.raft.role.Role;
 import org.example.raft.role.RoleStatus;
+import org.example.raft.role.active.SaveLogTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,10 +43,15 @@ public class RoleService {
 
   private RoleStatus roleStatus;
 
-  public RoleService(SaveData saveData,GlobalConfig config, RaftStatus raftStatus,RoleStatus roleStatus, SaveLog saveLog) {
-    followRole = new FollowRole(saveData,saveLog, raftStatus,roleStatus,config);
-    leaderRole = new LeaderRole(saveData,saveLog, raftStatus,roleStatus,config);
-    candidateRole = new CandidateRole(saveData,saveLog, raftStatus,roleStatus,config);
+  public RoleService(SaveData saveData, GlobalConfig config, RaftStatus raftStatus, RoleStatus roleStatus,
+      SaveLog saveLog, BlockingQueue<LogEntries[]> applyLogQueue,
+      BlockingQueue<TaskMaterial> saveLogQueue, SaveLogTask saveLogTask) {
+    followRole = new FollowRole(saveData, saveLog, raftStatus, roleStatus, config, applyLogQueue, saveLogQueue,
+        saveLogTask);
+    leaderRole = new LeaderRole(saveData, saveLog, raftStatus, roleStatus, config, applyLogQueue, saveLogQueue,
+        saveLogTask);
+    candidateRole = new CandidateRole(saveData, saveLog, raftStatus, roleStatus, applyLogQueue, saveLogQueue,
+        saveLogTask);
     this.roleStatus = roleStatus;
   }
 

@@ -2,6 +2,7 @@ package org.example.raft.service;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.LinkedBlockingDeque;
 
 import org.example.raft.dto.ChaseAfterLog;
 
@@ -57,8 +58,10 @@ public class RaftStatus {
    * member
    */
   private List<String> allMembers = new LinkedList<>();
-  private volatile List<String> validMembers = new LinkedList<>();
-  private List<ChaseAfterLog> failedMembers = new LinkedList<>();
+
+  private LinkedBlockingDeque<String> validMembers = new LinkedBlockingDeque<>();
+
+  private LinkedBlockingDeque<ChaseAfterLog> failedMembers = new LinkedBlockingDeque<>();
 
   /**
    * 人员数量
@@ -131,11 +134,11 @@ public class RaftStatus {
     this.lastTimeTerm = lastTimeTerm;
   }
 
-  public List<ChaseAfterLog> getFailedMembers() {
+  public LinkedBlockingDeque<ChaseAfterLog> getFailedMembers() {
     return failedMembers;
   }
 
-  public void setFailedMembers(List<ChaseAfterLog> failedMembers) {
+  public void setFailedMembers(LinkedBlockingDeque<ChaseAfterLog> failedMembers) {
     this.failedMembers = failedMembers;
   }
 
@@ -222,11 +225,11 @@ public class RaftStatus {
     this.allMembers = allMembers;
   }
 
-  public List<String> getValidMembers() {
+  public LinkedBlockingDeque<String> getValidMembers() {
     return validMembers;
   }
 
-  public void setValidMembers(List<String> validMembers) {
+  public void setValidMembers(LinkedBlockingDeque<String> validMembers) {
     this.validMembers = validMembers;
   }
 

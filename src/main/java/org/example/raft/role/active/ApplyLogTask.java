@@ -7,7 +7,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.example.raft.dto.LogEntries;
 import org.example.raft.persistence.SaveData;
-import org.example.raft.role.RoleStatus;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.ByteUtil;
 import org.example.raft.util.RaftUtil;
@@ -30,8 +29,6 @@ public class ApplyLogTask {
 
   private ScheduledExecutorService executorService;
 
-  private RoleStatus roleStatus;
-
   private RaftStatus raftStatus;
 
   private SaveData saveData;
@@ -43,22 +40,23 @@ public class ApplyLogTask {
   /**
    * //todo 不是lead以后，还有必要继续写入队列里的数据吗？
    * @param dataQueue
-   * @param roleStatus
    * @param saveData
    */
-  public ApplyLogTask(BlockingQueue<LogEntries[]> dataQueue, RoleStatus roleStatus, RaftStatus raftStatus,
+  public ApplyLogTask(BlockingQueue<LogEntries[]> dataQueue, RaftStatus raftStatus,
       SaveData saveData) {
     this.appliedLogPrefixKey = RaftUtil.generateApplyLogKey(raftStatus.getGroupId());
     this.dataKeyPrefix =  RaftUtil.generateDataKey(raftStatus.getGroupId());
     this.logQueue = dataQueue;
-    this.roleStatus = roleStatus;
     this.raftStatus = raftStatus;
     this.saveData = saveData;
-    executorService = new ScheduledThreadPoolExecutor(1, e -> {
+  }
+
+  public void start(){
+    this.executorService = new ScheduledThreadPoolExecutor(1, e -> {
       Thread thread = new Thread(e, "SyscLogTask");
       return thread;
     });
-    executorService.scheduleAtFixedRate(this::run, 0, 50, TimeUnit.MILLISECONDS);
+    this.executorService.scheduleAtFixedRate(this::run, 0, 50, TimeUnit.MILLISECONDS);
   }
 
   /**

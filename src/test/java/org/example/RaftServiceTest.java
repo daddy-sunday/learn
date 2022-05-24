@@ -70,4 +70,7 @@ public class RaftServiceTest {
     RaftService raftService = new RaftService();
     raftService.start(globalConfig);
   }
+
+
+
 }

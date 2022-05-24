@@ -3,22 +3,25 @@ package org.example.raft.role;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.example.conf.GlobalConfig;
+import org.example.raft.constant.ServiceStatus;
 import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcResponest;
+import org.example.raft.dto.TaskMaterial;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
+import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.role.active.SendVote;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
@@ -34,8 +37,10 @@ public class CandidateRole extends BaseRole implements Role {
 
   private static final Logger LOG = LoggerFactory.getLogger(CandidateRole.class);
 
-  public CandidateRole( SaveData saveData,SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus, GlobalConfig conf) {
-    super(saveData,saveLogInterface,raftStatus, roleStatus);
+  public CandidateRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
+      BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
+      SaveLogTask saveLogTask) {
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask);
   }
 
   /**
@@ -61,6 +66,7 @@ public class CandidateRole extends BaseRole implements Role {
     for (String address : raftStatus.getAllMembers()) {
       sendVotes.add(new SendVote(request, address));
     }
+    raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
     //开始选举
     do {
       try {
@@ -100,6 +106,7 @@ public class CandidateRole extends BaseRole implements Role {
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.CANDIDATE);
     LOG.info("candidate->vote: end");
+    raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
   }
 
 
@@ -122,12 +129,10 @@ public class CandidateRole extends BaseRole implements Role {
 
   @Override
   public RaftRpcResponest addLogRequest(AddLogRequest request) {
-    /**
-     * 接收到领导人发送的消息，并且term大于等于自己的term，转变选举状态为 跟随者
-     */
+    inService();
     if (request.getTerm() >= raftStatus.getCurrentTerm()) {
       raftStatus.setCurrentTerm(request.getTerm());
-      LOG.info("candidate->addlog: term greater than cureent term , candidate to follower ");
+      LOG.info("接收到领导人发送的消息，并且term大于等于自己的term，转变选举状态为 跟随者");
       if (roleStatus.candidateToFollower()) {
         raftStatus.setLeaderAddress(request.getLeaderId());
       }

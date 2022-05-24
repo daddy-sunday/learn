@@ -1,10 +1,12 @@
 package org.example.raft.dto;
 
+import java.io.Serializable;
+
 /**
  *@author zhouzhiyuan
  *@date 2021/11/23
  */
-public class DataRequest {
+public class DataRequest implements Serializable {
   private int type;
 
   private String message;

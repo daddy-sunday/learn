@@ -1,15 +1,20 @@
 package org.example.raft.role;
 
+import java.util.concurrent.BlockingQueue;
+
 import org.example.conf.GlobalConfig;
+import org.example.raft.constant.ServiceStatus;
 import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcResponest;
+import org.example.raft.dto.TaskMaterial;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
+import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
@@ -26,8 +31,9 @@ public class FollowRole extends BaseRole implements Role {
   private long checkTimeoutInterval;
 
   public FollowRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
-      GlobalConfig conf) {
-    super(saveData, saveLogInterface, raftStatus, roleStatus);
+      GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
+      SaveLogTask saveLogTask) {
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask);
     this.checkTimeoutInterval = conf.getCheckTimeoutInterval();
   }
 
@@ -36,12 +42,15 @@ public class FollowRole extends BaseRole implements Role {
    */
 
   private void init() {
+    //todo 还需要在进行一次状态初始化吗
     LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
     //接收log日志时判断，日志是否连续使用
     raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
     raftStatus.setLastTimeTerm(maxLog.getTerm());
     //判断超时选举用
     raftStatus.setLastTime();
+
+    raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
   }
 
   @Override
@@ -61,11 +70,12 @@ public class FollowRole extends BaseRole implements Role {
         LOG.error(e.getMessage(), e);
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.FOLLOWER);
+    raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
   }
 
   @Override
   public RaftRpcResponest addLogRequest(AddLogRequest request) {
-
+    inService();
     return new RaftRpcResponest(raftStatus.getCurrentTerm(), addLogProcess(request));
   }
 
@@ -81,11 +91,13 @@ public class FollowRole extends BaseRole implements Role {
 
   @Override
   public DataResponest getData(GetData request) {
+    inService();
      return new DataResponest(StatusCode.REDIRECT,raftStatus.getLeaderAddress());
   }
 
   @Override
   public DataResponest setData(String request) {
+    inService();
     return new DataResponest(StatusCode.REDIRECT, raftStatus.getLeaderAddress());
   }
 }

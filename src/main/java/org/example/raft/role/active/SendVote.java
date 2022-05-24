@@ -40,6 +40,6 @@ public class SendVote implements Callable<Boolean> {
       LOG.warn("candidate-> send vote  failed: "+e.getMessage()+" address: "+sendAddress);
     }
 
-    return raftRpcResponest == null ? false:raftRpcResponest.getSuccess();
+    return raftRpcResponest != null && raftRpcResponest.getStatus();
   }
 }

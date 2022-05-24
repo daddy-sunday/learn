@@ -1,12 +1,14 @@
 package org.example.raft.dto;
 
+import java.io.Serializable;
+
 import org.example.raft.constant.StatusCode;
 
 /**
  *@author zhouzhiyuan
  *@date 2021/11/23
  */
-public class DataResponest {
+public class DataResponest implements Serializable {
   private int status;
   private String message;
 
