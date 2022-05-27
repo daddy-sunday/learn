@@ -15,6 +15,8 @@ import com.alipay.remoting.exception.RemotingException;
  *@date 2022/5/23
  */
 public class RpcTest {
+
+  public static Integer a = 10;
   @Test
   public void Clint() throws RemotingException, InterruptedException {
 

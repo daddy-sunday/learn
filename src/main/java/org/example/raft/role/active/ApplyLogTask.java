@@ -5,6 +5,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.example.conf.GlobalConfig;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.service.RaftStatus;
@@ -37,27 +38,32 @@ public class ApplyLogTask {
 
   private final byte[] dataKeyPrefix;
 
+  private long interval;
+
   /**
    * //todo 不是lead以后，还有必要继续写入队列里的数据吗？
    * @param dataQueue
    * @param saveData
    */
   public ApplyLogTask(BlockingQueue<LogEntries[]> dataQueue, RaftStatus raftStatus,
-      SaveData saveData) {
+      SaveData saveData, GlobalConfig config) {
     this.appliedLogPrefixKey = RaftUtil.generateApplyLogKey(raftStatus.getGroupId());
-    this.dataKeyPrefix =  RaftUtil.generateDataKey(raftStatus.getGroupId());
+    this.dataKeyPrefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
     this.logQueue = dataQueue;
     this.raftStatus = raftStatus;
     this.saveData = saveData;
+    this.interval = config.getApplyLogTaskInterval();
   }
 
-  public void start(){
+  public void start() {
     this.executorService = new ScheduledThreadPoolExecutor(1, e -> {
       Thread thread = new Thread(e, "SyscLogTask");
       return thread;
     });
-    this.executorService.scheduleAtFixedRate(this::run, 0, 50, TimeUnit.MILLISECONDS);
+    this.executorService.scheduleAtFixedRate(this::run, 0, interval, TimeUnit.MILLISECONDS);
   }
+
+
 
   /**
    * 每50ms写入一次数据
@@ -68,9 +74,11 @@ public class ApplyLogTask {
     int size = logQueue.size();
     if (1 > size) {
       // 无数据写入
+      LOG.debug("未监测到log需要应用: " + size);
       return;
     }
 
+    LOG.debug("检查到需要存储的任务数: " + size);
     WriteBatch writeBatch = new WriteBatch();
     long logIndex = 0;
     try {
@@ -98,6 +106,7 @@ public class ApplyLogTask {
       //todo  重试写入失败后退出程序 ?
       System.exit(100);
     }
+    LOG.debug("应用log日志完成");
   }
 
   public void stop() {

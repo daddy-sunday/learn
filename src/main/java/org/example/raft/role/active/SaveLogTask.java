@@ -6,6 +6,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.example.conf.GlobalConfig;
 import org.example.raft.constant.ServiceStatus;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.TaskMaterial;
@@ -41,20 +42,23 @@ public class SaveLogTask {
 
   private volatile long execTaskCount = 0;
 
+  private long interval;
+
   /**
    * todo 不是lead以后，还有必要继续写入队列里的数据吗？
    */
   public SaveLogTask(BlockingQueue<TaskMaterial> logQueue,
       RaftStatus raftStatus,
-      SaveLog saveLog) {
+      SaveLog saveLog, GlobalConfig config) {
     this.logQueue = logQueue;
     this.raftStatus = raftStatus;
     this.saveLog = saveLog;
+    interval = config.getSavelogTaskInterval();
   }
 
   public void start() {
     executorService = new ScheduledThreadPoolExecutor(1, e -> new Thread(e, "SyscLogTask"));
-    executorService.scheduleAtFixedRate(this::run, 0, 50, TimeUnit.MILLISECONDS);
+    executorService.scheduleAtFixedRate(this::run, 2000, interval, TimeUnit.MILLISECONDS);
   }
 
   /**
@@ -68,9 +72,11 @@ public class SaveLogTask {
 
     int size = logQueue.size();
     if (size < 1) {
+     // LOG.debug("未监测到log需要存储: " + size);
       serviceStatus = ServiceStatus.NON_SERVICE;
       return;
     }
+    LOG.debug("检查到需要存储的任务数: " + size);
 
     WriteBatch writeBatch = new WriteBatch();
     TaskMaterial[] taskMaterials = new TaskMaterial[size];
@@ -92,19 +98,38 @@ public class SaveLogTask {
     } catch (NoSuchElementException e) {
       LOG.warn("队列中没有数据了，可能是raft发生了角色切换");
       for (int i = 0; i < size; i++) {
-        if (taskMaterials[i]!= null){
+        if (taskMaterials[i] != null) {
           taskMaterials[i].failed();
         }
       }
       serviceStatus = ServiceStatus.NON_SERVICE;
       return;
     }
-
+    //一批任务更新一次commitLogIndex
+    taskMaterials[size - 1].setCommitLogIndexFlag();
+    //记录提交的这批数据
+    taskMaterials[size - 1].setResult(concatLogEntries(taskMaterials));
     for (int i = 0; i < size; i++) {
       taskMaterials[i].success();
     }
     serviceStatus = ServiceStatus.NON_SERVICE;
+    LOG.debug("存储log日志完成");
   }
+
+  private LogEntries[] concatLogEntries(TaskMaterial[] taskMaterials) {
+    int size = 0;
+    for (int i = 0; i < taskMaterials.length; i++) {
+      size = size + taskMaterials[i].getAddLog().length;
+    }
+    LogEntries[] entries = new LogEntries[size];
+    int length = 0;
+    for (int i = 0; i < taskMaterials.length; i++) {
+      System.arraycopy(taskMaterials[i].getAddLog(), 0, entries, length, taskMaterials[i].getAddLog().length);
+      length += taskMaterials[i].getAddLog().length;
+    }
+    return entries;
+  }
+
 
   public void stop() {
     executorService.shutdownNow();

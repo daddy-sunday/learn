@@ -41,4 +41,12 @@ public class DataResponest implements Serializable {
   public void setMessage(String message) {
     this.message = message;
   }
+
+  @Override
+  public String toString() {
+    return "DataResponest{" +
+        "status=" + status +
+        ", message='" + message + '\'' +
+        '}';
+  }
 }

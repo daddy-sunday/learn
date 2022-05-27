@@ -1,13 +1,9 @@
 package org.example.raft.persistence;
 
 import java.io.File;
-import java.util.LinkedList;
-import java.util.List;
 
 import org.example.conf.GlobalConfig;
 import org.example.raft.dto.LogEntries;
-import org.example.raft.dto.Row;
-import org.example.raft.util.ByteUtil;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -87,16 +83,8 @@ public class DefaultSaveLogImpl implements SaveLog {
   }
 
   @Override
-  public List<Row> scan(byte[] startKey, byte[] endKey) {
-    List<Row> rows = new LinkedList<>();
-    RocksIterator iterator = rocksDB.newIterator();
-    for (iterator.seek(startKey); iterator.isValid(); iterator.next()) {
-      byte[] key = iterator.key();
-      if (ByteUtil.bytesCompare(key, endKey) < 0) {
-        rows.add(new Row(key, iterator.value()));
-      }
-    }
-    return rows;
+  public SaveIterator scan(byte[] startKey, byte[] endKey) {
+    return new SaveIterator(rocksDB.newIterator(), startKey, endKey);
   }
 
   @Override

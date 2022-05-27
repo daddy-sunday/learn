@@ -6,11 +6,21 @@ package org.example.raft.dto;
  */
 public class ChaseAfterLog {
   private String  address;
+  private int raftGroupId;
   private long logId;
 
-  public ChaseAfterLog(String address, long logId) {
+  public ChaseAfterLog(String address, int raftGroupId, long logId) {
     this.address = address;
+    this.raftGroupId = raftGroupId;
     this.logId = logId;
+  }
+
+  public int getRaftGroupId() {
+    return raftGroupId;
+  }
+
+  public void setRaftGroupId(int raftGroupId) {
+    this.raftGroupId = raftGroupId;
   }
 
   public String getAddress() {
@@ -27,5 +37,13 @@ public class ChaseAfterLog {
 
   public void setLogId(long logId) {
     this.logId = logId;
+  }
+
+  @Override
+  public String toString() {
+    return "ChaseAfterLog{" +
+        "address='" + address + '\'' +
+        ", logId=" + logId +
+        '}';
   }
 }

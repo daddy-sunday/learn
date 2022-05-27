@@ -2,12 +2,15 @@ package org.example.raft.role;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.example.raft.constant.ServiceStatus;
+import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.LogEntries;
+import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.TaskMaterial;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
@@ -58,7 +61,7 @@ public abstract class BaseRole implements Role {
     while (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
       try {
         LOG.debug("当前角色不在服务状态，等待。状态：" + raftStatus.getServiceStatus() + "角色：" + roleStatus.getNodeStatus());
-        Thread.sleep(10);
+        Thread.sleep(100);
       } catch (InterruptedException ignored) {
       }
     }
@@ -102,17 +105,18 @@ public abstract class BaseRole implements Role {
    * 如果领导者的已知已经提交的最高的日志条目的索引leaderCommit 大于 接收者的已知已经提交的最高的日志条目的索引commitIndex 则把 接收者的已知已经提交的最高的日志条目的索引commitIndex 重置为 领导者的已知已经提交的最高的日志条目的索引leaderCommit 或者是 上一个新条目的索引 取两者的最小值
    *
    */
-  boolean addLogProcess(AddLogRequest request) {
+  RaftRpcResponest addLogProcess(AddLogRequest request) {
+
     if (request.getTerm() < raftStatus.getCurrentTerm()) {
       LOG.error("接收日志：接收到的term小于当前term " + request.getTerm() + "<" + raftStatus.getCurrentTerm());
-      return false;
+      return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.MIN_TERM);
     }
     LogEntries[] entries = request.getEntries();
     if (entries == null) {
       //接收到心跳日志，更新超时时间
       LOG.debug("接收日志: 更新follow超时时间");
       raftStatus.setLastTime();
-      return true;
+      return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
     }
     try {
       //优化后的实现逻辑逻辑（只有异常情况（日志不连续时）才需要查询存储系统） 。
@@ -122,7 +126,7 @@ public abstract class BaseRole implements Role {
         LogEntries existLog = saveLog.get(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getPrevLogIndex()));
         if (existLog.getTerm() != request.getPreLogTerm()) {
           LOG.error("接收日志的上一条log 的term不匹配。 请求的term"+request.getPreLogTerm()+" 当前的term："+existLog.getTerm());
-          return false;
+          return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         } else {
           LOG.warn("日志冲突 " + request.toString());
           raftStatus.setServiceStatus(ServiceStatus.WAIT_RENEW);
@@ -133,20 +137,26 @@ public abstract class BaseRole implements Role {
               RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
           raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
           //todo 存储的数据需要重做，因为没办法对已经应用的log数据回滚
+          LOG.error("还没有实现的功能，删除应用数据重做！");
         }
       } else {
         //判断接收到的log日志是否连续
         if (request.getPrevLogIndex() != raftStatus.getLastTimeLogIndex()
             || request.getPreLogTerm() != raftStatus.getLastTimeTerm()) {
-          LOG.error("接收日志不匹配"+ request.toString()+" 预期的值: "+ raftStatus.getLastTimeLogIndex()+" "+ raftStatus.getLastTimeTerm());
-          return false;
+          LOG.error("接收日志不匹配" + request.toString() + " 预期的值: " + raftStatus.getLastTimeLogIndex() + " " + raftStatus
+              .getLastTimeTerm());
+          return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         }
       }
       CountDownLatch countDownLatch = new CountDownLatch(1);
       AtomicInteger atomicInteger = new AtomicInteger();
       TaskMaterial taskMaterial = new TaskMaterial(entries, countDownLatch, atomicInteger);
       saveLogQueue.add(taskMaterial);
-      countDownLatch.wait();
+      raftStatus.setLastTimeLogIndex(entries[entries.length - 1].getLogIndex());
+      raftStatus.setLastTimeTerm(entries[entries.length - 1].getTerm());
+      LOG.debug("添加log日志到队列中，更新preLogIndex 和 preTerm："+ entries[entries.length - 1].getLogIndex()
+          + " , " +entries[entries.length - 1].getTerm());
+      countDownLatch.await(10000, TimeUnit.MILLISECONDS);
 
       if (atomicInteger.get() == 1) {
         if (taskMaterial.isCommitLogIndexFlag()) {
@@ -155,11 +165,11 @@ public abstract class BaseRole implements Role {
           if (leaderCommit > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(leaderCommit, request.getLogIndex()));
           }
-          raftStatus.setLastTimeLogIndex(entries[entries.length - 1].getLogIndex());
-          raftStatus.setLastTimeTerm(entries[entries.length - 1].getTerm());
+          LOG.debug("添加日志到应用队列 ：" + request.getLogIndex());
           applyLogQueue.add(taskMaterial.getResult());
         }
-        return true;
+        LOG.debug("日志接收成功 ：" + request.getLogIndex());
+        return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
       } else if (atomicInteger.get() > 1) {
         LOG.error("不应该出现的异常 ： follow存储日志时，count > 1 了");
         System.exit(100);
@@ -168,7 +178,8 @@ public abstract class BaseRole implements Role {
       LOG.error("follow存储log失败 " + e.getMessage(), e);
       System.exit(100);
     }
-    return false;
+    LOG.debug("接收日志异常 ：" + request.getLogIndex());
+    return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.SERVICE_EXCEPTION);
   }
 
   @Override

@@ -4,8 +4,10 @@ import java.util.concurrent.BlockingQueue;
 
 import org.example.conf.GlobalConfig;
 import org.example.raft.constant.MessageType;
+import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataRequest;
+import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcRequest;
@@ -88,12 +90,12 @@ public class RoleService {
   public Object processDataRequest(DataRequest request) {
     if (request.getType() == MessageType.GET) {
       return currentRole.getData(JSON.parseObject(request.getMessage(), GetData.class));
-    } else if (request.getType() ==MessageType.SET) {
+    } else if (request.getType() == MessageType.SET) {
       return currentRole.setData(request.getMessage());
 
     }
     LOG.error("处理请求类型不支持 request：" + request);
-    return new RaftRpcResponest(-1L, false);
+    return new DataResponest(StatusCode.UNSUPPORT_REQUEST_TYPE, "处理请求类型不支持,数据接口类型只能是 MessageType.GET  MessageType.SET ");
   }
 
 }

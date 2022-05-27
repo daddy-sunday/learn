@@ -36,7 +36,7 @@ public class DefaultSaveDataImpl implements SaveData {
     }
     rocksDB = RocksDB.open(config.getDataPath());
     writeOptions = new WriteOptions();
-    writeOptions.setDisableWAL(true);
+    //writeOptions.setDisableWAL(true);
   }
 
   @Override

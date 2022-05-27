@@ -14,27 +14,36 @@ public class StatusCode {
   /**
    * 当集群处于选举状态时的返回码
    */
-  public static final int SLEEP = 600;
+  public static final int SLEEP = 60;
 
   /**
    * 同步log失败
    */
-  public static final int SYNLOG = 601;
+  public static final int SYNLOG = 61;
 
-  public static final int SAVELOG = 602;
+  public static final int SAVELOG = 62;
+
+  public static final byte EMPTY = 0;
+
+  public static final int UNSUPPORT_REQUEST_TYPE =  -1;
+
+  /**
+   * 接收端异常
+   */
+  public static final byte SERVICE_EXCEPTION= 62;
 
   /**
    * 网络原因异常
    */
-  public static final int EXCEPTION = 603;
+  public static final byte EXCEPTION = 63;
 
   /**
    * term小于接收者term
    */
-  public static final int MIN_TERM = 604;
+  public static final byte MIN_TERM = 64;
   /**
    *不匹配logindex
    */
-  public static final int NOT_MATCH_LOG_INDEX = 605;
+  public static final byte NOT_MATCH_LOG_INDEX = 65;
 
 }

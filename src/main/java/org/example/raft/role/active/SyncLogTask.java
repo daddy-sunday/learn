@@ -49,10 +49,13 @@ public class SyncLogTask {
 
   private RoleStatus roleStatus;
 
-  public SyncLogTask(BlockingQueue<TaskMaterial> queue, RaftStatus raftStatus, RoleStatus roleStatus) {
+  private int sendHeartbeatTimeout;
+
+  public SyncLogTask(BlockingQueue<TaskMaterial> queue, RaftStatus raftStatus, RoleStatus roleStatus, long interval,
+      int sendHeartbeatTimeout) {
     this.raftStatus = raftStatus;
     this.roleStatus = roleStatus;
-
+    this.sendHeartbeatTimeout = sendHeartbeatTimeout;
     executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum(), raftStatus.getPersonelNum(),
         3600L, TimeUnit.MILLISECONDS,
         new ArrayBlockingQueue<Runnable>(100), e -> {
@@ -68,15 +71,17 @@ public class SyncLogTask {
       return new Thread(e, "schedulerSyncLogTask");
     });
     this.queue = queue;
-    scheduler.scheduleAtFixedRate(this::run, 0, 50, TimeUnit.MILLISECONDS);
+    scheduler.scheduleAtFixedRate(this::run, 2000, interval, TimeUnit.MILLISECONDS);
   }
 
 
   public void run() {
     int size = queue.size();
     if (size < 1) {
+      //LOG.debug("未监测到log需要同步: " + size);
       return;
     }
+    LOG.debug("需要同步的log数 " + size);
     TaskMaterial[] taskMaterials = new TaskMaterial[size];
     LogEntries[] logEntries = new LogEntries[size];
     int count = 0;
@@ -99,11 +104,10 @@ public class SyncLogTask {
       for (String address : raftStatus.getValidMembers()) {
         sendHeartbeats.add(
             new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLog)), address,
-                raftStatus.getCurrentTerm()));
+                sendHeartbeatTimeout));
       }
-
       List<Future<SynchronizeLogResult>> futures = executorService
-          .invokeAll(sendHeartbeats, 10000, TimeUnit.MILLISECONDS);
+          .invokeAll(sendHeartbeats, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
 
 // todo 优化，改为后台登台结果，不能影响发送
       for (Future<SynchronizeLogResult> future : futures) {
@@ -113,11 +117,13 @@ public class SyncLogTask {
           //移除同步失败的节点，并使用单独线程追赶落后的日志。
           String address = future.get().getAddress();
           raftStatus.getValidMembers().remove(address);
-          raftStatus.getFailedMembers().add(new ChaseAfterLog(address, logIndex));
+          ChaseAfterLog chaseAfterLog = new ChaseAfterLog(address, raftStatus.getGroupId(), logIndex);
+          raftStatus.getFailedMembers().add(chaseAfterLog);
+          LOG.debug("日志同步失败，地址添加到失败恢复队列："+chaseAfterLog);
         }
       }
     } catch (Exception e) {
-      LOG.error(e.getMessage(), e);
+      LOG.error("发送同步日志异常："+e.getMessage(), e);
       for (int i = 0; i < size; i++) {
         if (taskMaterials[i]!= null) {
           taskMaterials[i].failed();
@@ -133,6 +139,7 @@ public class SyncLogTask {
     for (int i = 0; i < size; i++) {
       taskMaterials[i].success(count);
     }
+    LOG.debug("同步log完成");
   }
 
 

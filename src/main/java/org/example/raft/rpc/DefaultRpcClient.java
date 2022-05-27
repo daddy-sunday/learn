@@ -17,7 +17,7 @@ public class DefaultRpcClient {
 
   private static final RpcClient client =  new RpcClient();;
 
-  private static int defaultTimeout = 1000;
+  private static int defaultTimeout = 10000;
 
   static {
     client.init();
@@ -32,7 +32,7 @@ public class DefaultRpcClient {
     return  (DataResponest)client.invokeSync(url,request, defaultTimeout);
   }
 
-  public DataResponest dataRequest(String url, DataRequest request,int timeOut) throws RemotingException, InterruptedException {
+  public static DataResponest dataRequest(String url, DataRequest request,int timeOut) throws RemotingException, InterruptedException {
     return  (DataResponest)client.invokeSync(url,request,timeOut);
   }
 

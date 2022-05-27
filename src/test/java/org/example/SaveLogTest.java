@@ -1,10 +1,7 @@
 package org.example;
 
-import java.util.List;
-
 import org.example.conf.GlobalConfig;
 import org.example.raft.dto.LogEntries;
-import org.example.raft.dto.Row;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.util.ByteUtil;
@@ -176,10 +173,6 @@ public class SaveLogTest {
   }
 
   @Test
-  public void testScan(){
-    List<Row> scan = saveLog.scan(ByteUtil.longToBytes(1),ByteUtil.longToBytes(2));
-    for (Row row : scan) {
-      System.out.println(ByteUtil.parse17(row.getKey()) + " = " + new String(row.getValue()));
-    }
+  public void testScan() {
   }
 }

@@ -1,9 +1,6 @@
 package org.example.raft.persistence;
 
-import java.util.List;
-
 import org.example.raft.dto.LogEntries;
-import org.example.raft.dto.Row;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 import org.rocksdb.WriteBatch;
@@ -29,7 +26,7 @@ public interface SaveLog  {
 
   RocksIterator getIterator();
 
-  List<Row> scan(byte[] startKey, byte[] endKey);
+  SaveIterator scan(byte[] startKey, byte[] endKey);
 
   void  assembleData(WriteBatch batch,byte[] key, LogEntries log)  throws RocksDBException;
 

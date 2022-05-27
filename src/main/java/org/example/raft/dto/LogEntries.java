@@ -44,4 +44,13 @@ public class LogEntries {
   public void setMesssage(String messsage) {
     this.messsage = messsage;
   }
+
+  @Override
+  public String toString() {
+    return "LogEntries{" +
+        "logIndex=" + logIndex +
+        ", term=" + term +
+        ", messsage='" + messsage + '\'' +
+        '}';
+  }
 }

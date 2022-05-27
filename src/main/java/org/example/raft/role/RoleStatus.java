@@ -17,7 +17,7 @@ public class RoleStatus {
   /**
    * node  status
    */
-  private  volatile int nodeStatus = 2;
+  private  volatile int nodeStatus = 3;
 
 
   public  boolean leaderToFollower() {

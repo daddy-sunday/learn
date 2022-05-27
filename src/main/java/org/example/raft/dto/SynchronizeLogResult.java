@@ -47,4 +47,13 @@ public class SynchronizeLogResult {
   public void setSuccess(boolean success) {
     this.success = success;
   }
+
+  @Override
+  public String toString() {
+    return "SynchronizeLogResult{" +
+        "address='" + address + '\'' +
+        ", success=" + success +
+        ", statusCode=" + statusCode +
+        '}';
+  }
 }

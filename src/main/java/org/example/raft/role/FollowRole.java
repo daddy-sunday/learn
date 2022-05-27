@@ -76,7 +76,7 @@ public class FollowRole extends BaseRole implements Role {
   @Override
   public RaftRpcResponest addLogRequest(AddLogRequest request) {
     inService();
-    return new RaftRpcResponest(raftStatus.getCurrentTerm(), addLogProcess(request));
+    return addLogProcess(request);
   }
 
   /**

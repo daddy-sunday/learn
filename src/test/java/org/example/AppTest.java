@@ -5,12 +5,12 @@ import static java.lang.Thread.sleep;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.example.raft.constant.TaskType;
+import org.example.raft.dto.LogEntries;
+import org.example.raft.dto.TaskMaterial;
 import org.example.raft.util.ByteUtil;
 import org.junit.Test;
 import org.rocksdb.Options;
@@ -32,14 +34,39 @@ import org.rocksdb.WriteBatch;
 public class AppTest {
 
 
+
+
   @Test
   public void StringBuilder(){
 
-    Map<String,String>  a = new HashMap<>();
-    a.put("a","19910919");
-    System.out.println(concatPartitionParameter(a));
+    TaskMaterial[] taskMaterials = new TaskMaterial[3];
+    for (int i = 0; i < taskMaterials.length; i++) {
+      LogEntries[] entries = new LogEntries[i+1];
+      for (int i1 = 0; i1 < entries.length; i1++) {
+        entries[i1] = new LogEntries(i,i1,"s谁");
+      }
+      CountDownLatch countDownLatch = new CountDownLatch(1);
+      AtomicInteger atomicInteger = new AtomicInteger();
+      taskMaterials[i] =  new TaskMaterial(entries, countDownLatch, atomicInteger);
+    }
+    LogEntries[] logEntries = concatLogEntries(taskMaterials);
 
   }
+
+  private LogEntries[] concatLogEntries(TaskMaterial[] taskMaterials) {
+    int size = 0;
+    for (int i = 0; i < taskMaterials.length; i++) {
+      size = size + taskMaterials[i].getAddLog().length;
+    }
+    LogEntries[] entries = new LogEntries[size];
+    int length = 0;
+    for (int i = 0; i < taskMaterials.length; i++) {
+      System.arraycopy(taskMaterials[i].getAddLog(), 0, entries, length, taskMaterials[i].getAddLog().length);
+      length += taskMaterials[i].getAddLog().length;
+    }
+    return entries;
+  }
+
 
 
   private String concatPartitionParameter(Map<String, String> partitionValues) {

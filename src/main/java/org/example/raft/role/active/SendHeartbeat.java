@@ -25,13 +25,13 @@ public class SendHeartbeat implements Callable<SynchronizeLogResult> {
 
   private String sendAddress;
 
-  private long term;
+  private int timeout;
 
-  public SendHeartbeat(RoleStatus roleStatus, RaftRpcRequest raftRpcRequest, String sendAddress, long term) {
+  public SendHeartbeat(RoleStatus roleStatus, RaftRpcRequest raftRpcRequest, String sendAddress, int timeout) {
     this.roleStatus = roleStatus;
     this.raftRpcRequest = raftRpcRequest;
     this.sendAddress = sendAddress;
-    this.term = term;
+    this.timeout = timeout;
   }
 
   /**
@@ -42,14 +42,12 @@ public class SendHeartbeat implements Callable<SynchronizeLogResult> {
   public SynchronizeLogResult call() {
     SynchronizeLogResult result;
     try {
-      RaftRpcResponest raftRpcResponest = DefaultRpcClient.sendMessage(sendAddress, raftRpcRequest);
-      if (raftRpcResponest.getTerm() > term) {
+      RaftRpcResponest raftRpcResponest = DefaultRpcClient.sendMessage(sendAddress, raftRpcRequest,timeout);
+      if (raftRpcResponest.getFailCause() == StatusCode.MIN_TERM) {
         roleStatus.leaderToFollower();
-        result = new SynchronizeLogResult(sendAddress, raftRpcResponest.getStatus(),StatusCode.MIN_TERM);
         LOG.info("leader->send heartbeat : receive term > current term ,leader to follower");
-      }else {
-        result = new SynchronizeLogResult(sendAddress, raftRpcResponest.getStatus(),StatusCode.NOT_MATCH_LOG_INDEX);
       }
+      result = new SynchronizeLogResult(sendAddress, raftRpcResponest.getStatus(), raftRpcResponest.getFailCause());
     } catch (Exception e) {
       LOG.warn("leader->send heartbeat :" + e.getMessage() + " address: " + sendAddress);
       result =  new SynchronizeLogResult(sendAddress, false, StatusCode.EXCEPTION);

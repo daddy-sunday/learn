@@ -10,11 +10,20 @@ public class RaftRpcResponest implements Serializable {
   private long term;
   private boolean status;
   private byte failCause;
-  private String message;
+
+  public RaftRpcResponest(long term) {
+    this.term = term;
+  }
 
   public RaftRpcResponest(long term, boolean succcess) {
     this.term = term;
     this.status = succcess;
+  }
+
+  public RaftRpcResponest(long term, boolean status, byte failCause) {
+    this.term = term;
+    this.status = status;
+    this.failCause = failCause;
   }
 
   public long getTerm() {
@@ -45,21 +54,12 @@ public class RaftRpcResponest implements Serializable {
     this.failCause = failCause;
   }
 
-  public String getMessage() {
-    return message;
-  }
-
-  public void setMessage(String message) {
-    this.message = message;
-  }
-
   @Override
   public String toString() {
     return "RaftRpcResponest{" +
         "term=" + term +
         ", status=" + status +
         ", failCause=" + failCause +
-        ", message='" + message + '\'' +
         '}';
   }
 }

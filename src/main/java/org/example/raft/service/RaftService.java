@@ -9,6 +9,7 @@ import org.example.raft.dto.TaskMaterial;
 import org.example.raft.persistence.DefaultSaveDataImpl;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveData;
+import org.example.raft.persistence.SaveIterator;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.RoleStatus;
 import org.example.raft.role.active.ApplyLogTask;
@@ -42,8 +43,8 @@ public class RaftService {
     RaftStatus raftStatus = initRaftStatus(saveData, saveLog, conf);
     BlockingQueue<LogEntries[]> applyLogQueue = new LinkedBlockingDeque<>(1000);
     BlockingQueue<TaskMaterial> saveLogQueue = new LinkedBlockingDeque<>(1000);
-    ApplyLogTask applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData);
-    SaveLogTask saveLogTask = new SaveLogTask(saveLogQueue, raftStatus, saveLog);
+    ApplyLogTask applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData,conf);
+    SaveLogTask saveLogTask = new SaveLogTask(saveLogQueue, raftStatus, saveLog,conf);
 
     //核心处理逻辑
     RoleService roleService = new RoleService(saveData, conf, raftStatus, new RoleStatus(), saveLog, applyLogQueue,
@@ -61,6 +62,32 @@ public class RaftService {
     } catch (InterruptedException ignored) {
     }
   }
+
+
+  private void init(RaftStatus raftStatus,SaveLog saveLog,SaveData saveData) throws RocksDBException {
+    long commitIndex = raftStatus.getCommitIndex();
+    long lastApplied = raftStatus.getLastApplied();
+    byte[] bytes = RaftUtil.generateDataKey(raftStatus.getGroupId());
+    if (lastApplied < commitIndex) {
+      SaveIterator scan = saveLog.scan(RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied),
+          RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied));
+      //todo 优化 数据量很大时有内存溢出的风险
+      WriteBatch writeBatch = new WriteBatch();
+      for (scan.seek();scan.valied();scan.next()){
+        byte[] value = scan.getValue();
+        LogEntries[] entries = JSON.parseObject(value,LogEntries[].class);
+        saveData.assembleData(writeBatch,entries,bytes);
+      }
+      //提交 applied id  随批提交应用日志记录，保证原子性
+      writeBatch.put(RaftUtil.generateApplyLogKey(raftStatus.getGroupId()), ByteUtil.longToBytes(commitIndex));
+      saveData.writBatch(writeBatch);
+      LOG.info("应用日志完成："+lastApplied+" -> "+ commitIndex);
+    }
+    //读取commitLogIndex
+    //读取appliedLogIndex
+    //应用被提交的log
+  }
+
 
   /**
    * 集群状态初始化
