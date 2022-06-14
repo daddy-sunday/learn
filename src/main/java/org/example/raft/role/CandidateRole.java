@@ -25,7 +25,6 @@ import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.role.active.SendVote;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
-import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,11 +60,7 @@ public class CandidateRole extends BaseRole implements Role {
         0L, TimeUnit.MILLISECONDS,
         new SynchronousQueue<Runnable>());
     List<SendVote> sendVotes = new LinkedList<>();
-    VoteRequest request = new VoteRequest();
-
-    for (String address : raftStatus.getAllMembers()) {
-      sendVotes.add(new SendVote(request, address));
-    }
+    VoteRequest request = getVoteRequest(sendVotes);
     raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
     //开始选举
     do {
@@ -77,7 +72,7 @@ public class CandidateRole extends BaseRole implements Role {
         int tickets = 1;
         //todo  并发控制, 我认为这里是可以容忍的更新丢失
         raftStatus.currentTermAddOne();
-        getSendVote(request);
+        request.setTerm(raftStatus.getCurrentTerm());
         //get方法为阻塞方法，所以等待时间放入线程中
         int voteTimeOut = getVoteTimeOut();
         List<Future<Boolean>> futures = executorService
@@ -101,7 +96,7 @@ public class CandidateRole extends BaseRole implements Role {
           LOG.info("candidate->vote: vote failed,receive tickets: " + tickets + " currentTerm: " + raftStatus
               .getCurrentTerm());
         }
-      } catch (InterruptedException | RocksDBException e) {
+      } catch (InterruptedException e) {
         LOG.info(e.getMessage(), e);
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.CANDIDATE);
@@ -109,14 +104,20 @@ public class CandidateRole extends BaseRole implements Role {
     raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
   }
 
+  private VoteRequest getVoteRequest(List<SendVote> sendVotes) {
+    VoteRequest request = new VoteRequest();
 
-  public void getSendVote(VoteRequest request) throws RocksDBException {
     request.setCandidateId(raftStatus.getLocalAddress());
-    request.setTerm(raftStatus.getCurrentTerm());
     LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
     request.setLastLogIndex(maxLog.getLogIndex());
     request.setLastLogTerm(maxLog.getTerm());
+
+    for (String address : raftStatus.getAllMembers()) {
+      sendVotes.add(new SendVote(request, address));
+    }
+    return request;
   }
+
 
   /**
    * 随机151-300

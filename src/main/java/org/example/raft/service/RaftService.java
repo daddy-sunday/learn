@@ -9,7 +9,6 @@ import org.example.raft.dto.TaskMaterial;
 import org.example.raft.persistence.DefaultSaveDataImpl;
 import org.example.raft.persistence.DefaultSaveLogImpl;
 import org.example.raft.persistence.SaveData;
-import org.example.raft.persistence.SaveIterator;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.RoleStatus;
 import org.example.raft.role.active.ApplyLogTask;
@@ -43,7 +42,7 @@ public class RaftService {
     RaftStatus raftStatus = initRaftStatus(saveData, saveLog, conf);
     BlockingQueue<LogEntries[]> applyLogQueue = new LinkedBlockingDeque<>(1000);
     BlockingQueue<TaskMaterial> saveLogQueue = new LinkedBlockingDeque<>(1000);
-    ApplyLogTask applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData,conf);
+    ApplyLogTask applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData,saveLog,conf);
     SaveLogTask saveLogTask = new SaveLogTask(saveLogQueue, raftStatus, saveLog,conf);
 
     //核心处理逻辑
@@ -51,42 +50,16 @@ public class RaftService {
         saveLogQueue,saveLogTask);
     RaftRpcHandler raftRpcHandler = new RaftRpcHandler(roleService);
     DataRpcHandler dataRpcHandler = new DataRpcHandler(roleService);
+
     //网络通信
     DefaultRpcServer server = new DefaultRpcServer(conf, raftRpcHandler, dataRpcHandler);
     server.start();
     applyLogTask.start();
     saveLogTask.start();
     roleService.startWork();
-    try {
-      Thread.sleep(1000*60*60);
-    } catch (InterruptedException ignored) {
-    }
   }
 
 
-  private void init(RaftStatus raftStatus,SaveLog saveLog,SaveData saveData) throws RocksDBException {
-    long commitIndex = raftStatus.getCommitIndex();
-    long lastApplied = raftStatus.getLastApplied();
-    byte[] bytes = RaftUtil.generateDataKey(raftStatus.getGroupId());
-    if (lastApplied < commitIndex) {
-      SaveIterator scan = saveLog.scan(RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied),
-          RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied));
-      //todo 优化 数据量很大时有内存溢出的风险
-      WriteBatch writeBatch = new WriteBatch();
-      for (scan.seek();scan.valied();scan.next()){
-        byte[] value = scan.getValue();
-        LogEntries[] entries = JSON.parseObject(value,LogEntries[].class);
-        saveData.assembleData(writeBatch,entries,bytes);
-      }
-      //提交 applied id  随批提交应用日志记录，保证原子性
-      writeBatch.put(RaftUtil.generateApplyLogKey(raftStatus.getGroupId()), ByteUtil.longToBytes(commitIndex));
-      saveData.writBatch(writeBatch);
-      LOG.info("应用日志完成："+lastApplied+" -> "+ commitIndex);
-    }
-    //读取commitLogIndex
-    //读取appliedLogIndex
-    //应用被提交的log
-  }
 
 
   /**
@@ -116,15 +89,17 @@ public class RaftService {
       //初始化一条log
       writeBatch.put(RaftUtil.generateLogKey(groupId, RaftUtil.INIT_LOG_INDEX),
           JSON.toJSONBytes(new LogEntries(RaftUtil.INIT_LOG_INDEX, RaftUtil.INIT_TERM, "")));
-      raftStatus.setCommitIndex(RaftUtil.INIT_LOG_INDEX);
       raftStatus.setCurrentTerm(RaftUtil.INIT_TERM);
       raftStatus.setLastApplied(RaftUtil.INIT_LOG_INDEX);
+      raftStatus.setLastTimeLogIndex(RaftUtil.INIT_LOG_INDEX);
+      raftStatus.setLastTimeTerm(RaftUtil.INIT_TERM);
       saveLog.writBatch(writeBatch);
       saveData.put(RaftUtil.generateApplyLogKey(groupId),ByteUtil.longToBytes(RaftUtil.INIT_LOG_INDEX));
     } else {
       LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(groupId, Long.MAX_VALUE));
-      raftStatus.setCommitIndex(maxLog.getLogIndex());
       raftStatus.setCurrentTerm(maxLog.getTerm());
+      raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
+      raftStatus.setLastTimeTerm(maxLog.getTerm());
       byte[] appliedLogIndex = saveData.getValue(RaftUtil.generateApplyLogKey(groupId));
       if (appliedLogIndex == null) {
         //上一次初始化失败时才有可能会走到这里

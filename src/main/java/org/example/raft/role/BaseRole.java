@@ -45,6 +45,7 @@ public abstract class BaseRole implements Role {
   SaveLogTask saveLogTask;
 
 
+
   public BaseRole(SaveData saveData, SaveLog saveLog, RaftStatus raftStatus, RoleStatus roleStatus,
       BlockingQueue<LogEntries[]> applyLogQueue,
       BlockingQueue<TaskMaterial> saveLogQueue, SaveLogTask saveLogTask) {
@@ -82,7 +83,8 @@ public abstract class BaseRole implements Role {
     }
     boolean idVote = raftStatus.getVotedFor() == null || raftStatus.getVotedFor().equals(request.getCandidateId());
     if (idVote) {
-      if (request.getLastLogIndex() >= raftStatus.getCommitIndex()) {
+      if (request.getLastLogTerm() >= raftStatus.getLastTimeTerm() && request.getLastLogIndex() >= raftStatus
+          .getLastTimeLogIndex()) {
         raftStatus.setVotedFor(request.getCandidateId());
         LOG.debug("投票给: " + request.getCandidateId() + " " + request.getTerm());
         return true;
@@ -104,6 +106,7 @@ public abstract class BaseRole implements Role {
    * 追加日志中尚未存在的任何新条目
    * 如果领导者的已知已经提交的最高的日志条目的索引leaderCommit 大于 接收者的已知已经提交的最高的日志条目的索引commitIndex 则把 接收者的已知已经提交的最高的日志条目的索引commitIndex 重置为 领导者的已知已经提交的最高的日志条目的索引leaderCommit 或者是 上一个新条目的索引 取两者的最小值
    *
+   * todo 可以优化的地方：leader 发送时日志时不判断成功失败一直发送。但是客户端这边需要加公平锁 ，实现上一条日志处理完成才能处理下一条日志。保证处理日志顺序一致
    */
   RaftRpcResponest addLogProcess(AddLogRequest request) {
 
@@ -114,8 +117,9 @@ public abstract class BaseRole implements Role {
     LogEntries[] entries = request.getEntries();
     if (entries == null) {
       //接收到心跳日志，更新超时时间
-      LOG.debug("接收日志: 更新follow超时时间");
+      LOG.debug("接收心跳日志: 更新follow超时时间和commitIndex");
       raftStatus.setLastTime();
+      raftStatus.setCommitIndex(request.getLeaderCommit());
       return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
     }
     try {
@@ -136,8 +140,6 @@ public abstract class BaseRole implements Role {
           saveLog.deleteRange(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getLogIndex()),
               RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
           raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
-          //todo 存储的数据需要重做，因为没办法对已经应用的log数据回滚
-          LOG.error("还没有实现的功能，删除应用数据重做！");
         }
       } else {
         //判断接收到的log日志是否连续
@@ -148,15 +150,15 @@ public abstract class BaseRole implements Role {
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         }
       }
-      CountDownLatch countDownLatch = new CountDownLatch(1);
+      CountDownLatch cyclicBarrier = new CountDownLatch(1);
       AtomicInteger atomicInteger = new AtomicInteger();
-      TaskMaterial taskMaterial = new TaskMaterial(entries, countDownLatch, atomicInteger);
+      TaskMaterial taskMaterial = new TaskMaterial(entries, cyclicBarrier, atomicInteger);
       saveLogQueue.add(taskMaterial);
       raftStatus.setLastTimeLogIndex(entries[entries.length - 1].getLogIndex());
       raftStatus.setLastTimeTerm(entries[entries.length - 1].getTerm());
-      LOG.debug("添加log日志到队列中，更新preLogIndex 和 preTerm："+ entries[entries.length - 1].getLogIndex()
-          + " , " +entries[entries.length - 1].getTerm());
-      countDownLatch.await(10000, TimeUnit.MILLISECONDS);
+      LOG.debug("添加log日志到队列中，更新preLogIndex 和 preTerm：" + entries[entries.length - 1].getLogIndex()
+          + " , " + entries[entries.length - 1].getTerm());
+      cyclicBarrier.await(10000, TimeUnit.MILLISECONDS);
 
       if (atomicInteger.get() == 1) {
         if (taskMaterial.isCommitLogIndexFlag()) {
@@ -174,9 +176,11 @@ public abstract class BaseRole implements Role {
         LOG.error("不应该出现的异常 ： follow存储日志时，count > 1 了");
         System.exit(100);
       }
-    } catch (RocksDBException | InterruptedException e) {
+    } catch (RocksDBException e) {
       LOG.error("follow存储log失败 " + e.getMessage(), e);
       System.exit(100);
+    } catch (InterruptedException e) {
+      LOG.error("follow存储log时超时被中断 " + e.getMessage(), e);
     }
     LOG.debug("接收日志异常 ：" + request.getLogIndex());
     return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.SERVICE_EXCEPTION);

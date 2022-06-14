@@ -42,11 +42,14 @@ public class RaftStatus {
 
   private String votedFor;
 
+
+  private volatile long maxLogIndex;
+
   /**
    * easy lose status
    * todo  need init
    */
-  private volatile long commitIndex = 1;
+  private volatile long commitIndex = 0;
 
   /**
    * 最后应用的日志id

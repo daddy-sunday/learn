@@ -44,7 +44,7 @@ public class FollowRole extends BaseRole implements Role {
   private void init() {
     //todo 还需要在进行一次状态初始化吗
     LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
-    //接收log日志时判断，日志是否连续使用
+    //接收log日志时判断日志是否连续使用
     raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
     raftStatus.setLastTimeTerm(maxLog.getTerm());
     //判断超时选举用

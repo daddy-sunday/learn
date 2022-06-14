@@ -18,7 +18,7 @@ public class AddLogRequest {
 
   private LogEntries[] entries;
 
-  private long leaderCommit;
+  private long leaderCommit = 0;
 
   /**
    *

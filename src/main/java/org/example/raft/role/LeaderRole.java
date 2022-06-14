@@ -58,8 +58,6 @@ public class LeaderRole extends BaseRole implements Role {
 
   private long sendHeartbeatInterval;
 
-  private long logIndex;
-
   private SyncLogTask syncLogTask;
 
   private BlockingQueue<TaskMaterial> synLogQueue;
@@ -73,6 +71,8 @@ public class LeaderRole extends BaseRole implements Role {
   private final byte[] datakeyprefix;
 
   private int sendHeartbeatTimeout;
+
+  private long logIndex;
 
   /**
    * lead 繁忙状态 ,可以通过获取 执行线程的队列和线程使用情况来标定繁忙程度，便于外部管理调度
@@ -223,7 +223,7 @@ public class LeaderRole extends BaseRole implements Role {
     while (!synLogQueue.isEmpty()) {
       TaskMaterial poll = synLogQueue.poll();
       if (poll != null) {
-        poll.failed();
+          poll.failed();
       }
     }
 
@@ -305,7 +305,6 @@ public class LeaderRole extends BaseRole implements Role {
         return new DataResponest("成功了，哈哈");
       }
     } catch (InterruptedException e) {
-      //todo 直接退出吗？
       LOG.warn("leader -> 存储log时超时被中断" + e.getMessage());
     } catch (Exception e) {
       //todo 直接退出吗？
