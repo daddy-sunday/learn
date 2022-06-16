@@ -24,8 +24,35 @@ public class DataInteractionTest {
     Command command = new Command(DataOperationType.INSERT,new Row[]{row});
     request.setMessage(JSON.toJSONString(command));
     request.setType(MessageType.SET);
-    DataResponest dataResponest = DefaultRpcClient.dataRequest("localhost:20002", request, 100000);
-    System.out.println(dataResponest);
+    for (int i = 0; i < 100; i++) {
+      DataResponest dataResponest = DefaultRpcClient.dataRequest("localhost:20002", request, 100000);
+      System.out.println(dataResponest);
+    }
+  }
+
+  @Test
+  public void Clint1() throws RemotingException, InterruptedException {
+    DataRequest request = new DataRequest();
+    Row row = new Row("wo2".getBytes(),"shi2".getBytes());
+    Command command = new Command(DataOperationType.INSERT,new Row[]{row});
+    request.setMessage(JSON.toJSONString(command));
+    request.setType(MessageType.SET);
+    for (int i = 0; i < 100; i++) {
+      DataResponest dataResponest = DefaultRpcClient.dataRequest("localhost:20002", request, 100000);
+      System.out.println(dataResponest);
+    }
+  }
+  @Test
+  public void Clint3() throws RemotingException, InterruptedException {
+    DataRequest request = new DataRequest();
+    Row row = new Row("wo3".getBytes(),"shi3".getBytes());
+    Command command = new Command(DataOperationType.INSERT,new Row[]{row});
+    request.setMessage(JSON.toJSONString(command));
+    request.setType(MessageType.SET);
+    for (int i = 0; i < 100; i++) {
+      DataResponest dataResponest = DefaultRpcClient.dataRequest("localhost:20002", request, 100000);
+      System.out.println(dataResponest);
+    }
   }
 
 }

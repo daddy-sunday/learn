@@ -158,4 +158,9 @@ public class CandidateRole extends BaseRole implements Role {
   public DataResponest setData(String request) {
     return new DataResponest(StatusCode.SLEEP, null);
   }
+
+  @Override
+  public DataResponest doDataExchange() {
+    throw new UnsupportedOperationException("candidate 角色不支持的操作");
+  }
 }

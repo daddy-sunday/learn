@@ -6,6 +6,7 @@ import org.example.conf.GlobalConfig;
 import org.example.raft.constant.ServiceStatus;
 import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
+import org.example.raft.dto.DataChangeDto;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
 import org.example.raft.dto.LogEntries;
@@ -15,10 +16,13 @@ import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.active.SaveLogTask;
+import org.example.raft.rpc.DefaultRpcClient;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.alibaba.fastjson.JSON;
 
 /**
  *@author zhouzhiyuan
@@ -28,13 +32,11 @@ public class FollowRole extends BaseRole implements Role {
 
   private static final Logger LOG = LoggerFactory.getLogger(FollowRole.class);
 
-  private long checkTimeoutInterval;
 
   public FollowRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
       GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
       SaveLogTask saveLogTask) {
-    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask);
-    this.checkTimeoutInterval = conf.getCheckTimeoutInterval();
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask, conf);
   }
 
   /**
@@ -92,12 +94,31 @@ public class FollowRole extends BaseRole implements Role {
   @Override
   public DataResponest getData(GetData request) {
     inService();
-     return new DataResponest(StatusCode.REDIRECT,raftStatus.getLeaderAddress());
+    try {
+      DataChangeDto dataChangeDto = DefaultRpcClient
+          .dataChange(raftStatus.getLeaderAddress(), sendHeartbeatTimeout, RoleStatus.LEADER);
+      while (raftStatus.getLastApplied() < dataChangeDto.getCommitIndex()) {
+        LOG.debug("appliedIndex <  leader commitIndex : " + raftStatus.getLastApplied() + "<" + dataChangeDto
+            .getCommitIndex() + " 等待");
+        Thread.sleep(100);
+      }
+      return getDataCommon(request);
+    } catch (Exception e) {
+      LOG.error("获取leader commitIndex 失败", e);
+    }
+
+    return new DataResponest(StatusCode.REDIRECT, raftStatus.getLeaderAddress());
   }
 
   @Override
   public DataResponest setData(String request) {
     inService();
     return new DataResponest(StatusCode.REDIRECT, raftStatus.getLeaderAddress());
+  }
+
+  @Override
+  public DataResponest doDataExchange() {
+    return new DataResponest(StatusCode.SUCCESS,
+        JSON.toJSONString(new DataChangeDto(raftStatus.getLastTimeLogIndex(), raftStatus.getLastTimeTerm())));
   }
 }

@@ -27,6 +27,8 @@ public class StatusCode {
 
   public static final int UNSUPPORT_REQUEST_TYPE =  -1;
 
+  public static final int UNSUPPORT_REQUEST_FUNCATION =  501;
+
   /**
    * 接收端异常
    */

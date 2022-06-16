@@ -52,18 +52,21 @@ public class ChaseAfterLogTask {
   }
 
   public void start(long interval) {
-    executorService.scheduleAtFixedRate(this::run, 0, interval, TimeUnit.MILLISECONDS);
     executorService = new ScheduledThreadPoolExecutor(2, e -> new Thread(e, "ChaseAfterLogTask"));
+    executorService.scheduleAtFixedRate(this::run, 0, interval, TimeUnit.MILLISECONDS);
   }
 
 
   /**
    * 单线程追加进度落后的节点log，成功后将节点添加到可用列表
    * todo 追赶前需要获取一下目标节点的 log 状态，预先判断一下发送的log是否符合连续自增的条件，如果不符合发送了也是失败
+   *  当发现日志差很多时，需要使用snapshot 发送快照的方式进行数据同步。
+   *
    */
   public void run() {
     serviceStatus = 1;
     serviceCount += 1;
+    LOG.debug("检查是否有需要追赶的日志: ");
     Iterator<ChaseAfterLog> iterator = status.getFailedMembers().iterator();
     while (iterator.hasNext()) {
       ChaseAfterLog failedMember = iterator.next();
@@ -77,7 +80,7 @@ public class ChaseAfterLogTask {
         LogEntries log;
         LogEntries prevLog;
         try {
-          //todo 优化 不能每次都访问存储
+          //todo 优化 ：当第一次追日志成功后，开始批量发送日志，一条一条发送太慢了
           log = saveLog.get(RaftUtil.generateLogKey(status.getGroupId(), logId));
           prevLog = saveLog.get(RaftUtil.generateLogKey(status.getGroupId(), logId - 1));
         } catch (RocksDBException e) {

@@ -5,10 +5,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.example.conf.GlobalConfig;
 import org.example.raft.constant.ServiceStatus;
 import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.DataResponest;
+import org.example.raft.dto.GetData;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.TaskMaterial;
@@ -17,6 +19,7 @@ import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.service.RaftStatus;
+import org.example.raft.util.ByteUtil;
 import org.example.raft.util.RaftUtil;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
@@ -44,11 +47,16 @@ public abstract class BaseRole implements Role {
 
   SaveLogTask saveLogTask;
 
+  int sendHeartbeatTimeout;
+
+  long checkTimeoutInterval;
+
+  final byte[] datakeyprefix;
 
 
   public BaseRole(SaveData saveData, SaveLog saveLog, RaftStatus raftStatus, RoleStatus roleStatus,
       BlockingQueue<LogEntries[]> applyLogQueue,
-      BlockingQueue<TaskMaterial> saveLogQueue, SaveLogTask saveLogTask) {
+      BlockingQueue<TaskMaterial> saveLogQueue, SaveLogTask saveLogTask, GlobalConfig conf) {
     this.raftStatus = raftStatus;
     this.roleStatus = roleStatus;
     this.saveLog = saveLog;
@@ -56,6 +64,9 @@ public abstract class BaseRole implements Role {
     this.applyLogQueue = applyLogQueue;
     this.saveLogQueue = saveLogQueue;
     this.saveLogTask = saveLogTask;
+    this.datakeyprefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
+    this.checkTimeoutInterval = conf.getCheckTimeoutInterval();
+    this.sendHeartbeatTimeout = conf.getSendHeartbeatTimeout();
   }
 
   public void inService() {
@@ -66,6 +77,17 @@ public abstract class BaseRole implements Role {
       } catch (InterruptedException ignored) {
       }
     }
+  }
+
+  DataResponest getDataCommon(GetData request) {
+    byte[] value;
+    try {
+      value = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
+    } catch (RocksDBException e) {
+      LOG.error("查询数据失败：" + e.getMessage(), e);
+      return new DataResponest(StatusCode.SYSTEMEXCEPTION, null);
+    }
+    return new DataResponest(StatusCode.SUCCESS, new String(value));
   }
 
   /**
@@ -119,7 +141,9 @@ public abstract class BaseRole implements Role {
       //接收到心跳日志，更新超时时间
       LOG.debug("接收心跳日志: 更新follow超时时间和commitIndex");
       raftStatus.setLastTime();
-      raftStatus.setCommitIndex(request.getLeaderCommit());
+      if (request.getLeaderCommit() > raftStatus.getCommitIndex()) {
+        raftStatus.setCommitIndex(request.getLeaderCommit());
+      }
       return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
     }
     try {
@@ -163,7 +187,6 @@ public abstract class BaseRole implements Role {
       if (atomicInteger.get() == 1) {
         if (taskMaterial.isCommitLogIndexFlag()) {
           long leaderCommit = request.getLeaderCommit();
-          //TODO 这个判断需要吗？
           if (leaderCommit > raftStatus.getCommitIndex()) {
             raftStatus.setCommitIndex(Math.min(leaderCommit, request.getLogIndex()));
           }
@@ -188,6 +211,16 @@ public abstract class BaseRole implements Role {
 
   @Override
   public abstract DataResponest setData(String request);
+
+  @Override
+  public DataResponest dataExchange(String request) {
+    if (roleStatus.getNodeStatus() == Integer.parseInt(request, 10)) {
+      return new DataResponest(StatusCode.UNSUPPORT_REQUEST_FUNCATION, "当前角色发生切换，不能正常响应消息");
+    }
+    return doDataExchange();
+  }
+
+  public abstract DataResponest doDataExchange();
 
   void stopWriteLog() {
     //清空没有消费的savelog

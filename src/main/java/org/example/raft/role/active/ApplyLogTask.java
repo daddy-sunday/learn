@@ -86,14 +86,14 @@ public class ApplyLogTask {
     LogEntries[] peek = logQueue.peek();
     long longIndex = peek[0].getLogIndex();
     if (longIndex > raftStatus.getCommitIndex()) {
-      LOG.debug("跳过执行： longIndex > commitIndex ");
+      LOG.debug("跳过执行： longIndex :"+ longIndex +" > commitIndex :"+raftStatus.getCommitIndex());
       return;
     }
 
     try {
       //todo 第一次运行时会有应用日志不连续的问题，有时间可以优化到初始化中
       if (raftStatus.getLastApplied() + 1 != longIndex) {
-        if (applyLog()) {
+        if (!applyLog()) {
           LOG.error("应用log日志时出现逻辑错误");
           System.exit(100);
         }

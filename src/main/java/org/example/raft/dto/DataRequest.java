@@ -11,6 +11,14 @@ public class DataRequest implements Serializable {
 
   private String message;
 
+  public DataRequest() {
+  }
+
+  public DataRequest(int type, String message) {
+    this.type = type;
+    this.message = message;
+  }
+
   public int getType() {
     return type;
   }

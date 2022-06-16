@@ -1,10 +1,14 @@
 package org.example.raft.rpc;
 
+import org.example.raft.constant.MessageType;
+import org.example.raft.constant.StatusCode;
+import org.example.raft.dto.DataChangeDto;
 import org.example.raft.dto.DataRequest;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.RaftRpcRequest;
 import org.example.raft.dto.RaftRpcResponest;
 
+import com.alibaba.fastjson.JSON;
 import com.alipay.remoting.exception.RemotingException;
 import com.alipay.remoting.rpc.RpcClient;
 
@@ -26,6 +30,14 @@ public class DefaultRpcClient {
 
   public static void close(String url){
     client.closeConnection(url);
+  }
+
+  public static DataChangeDto dataChange(String url,int timeout,int role) throws RemotingException, InterruptedException {
+    DataResponest result = dataRequest(url, new DataRequest(MessageType.READ_INDEX,Integer.toString(role)));
+    if (result.getStatus() == StatusCode.SUCCESS) {
+      return JSON.parseObject(result.getMessage(),DataChangeDto.class);
+    }
+    throw new RemotingException(result.getMessage());
   }
 
   public static DataResponest  dataRequest(String url, DataRequest request) throws RemotingException, InterruptedException {

@@ -13,7 +13,7 @@ public class GlobalConfig {
   /**
    * follow检查心跳间隔
    */
- private long checkTimeoutInterval = 600000;
+ private long checkTimeoutInterval = 60000;
 
  private String otherNode = "localhost:20000,localhost:20001,localhost:20002";
 
@@ -24,7 +24,7 @@ public class GlobalConfig {
   /**
    * 发送心跳间隔
    */
- private int sendHeartbeatInterval = 100000;
+ private int sendHeartbeatInterval = 10000;
 
   /**
    * 保存log日志间隔

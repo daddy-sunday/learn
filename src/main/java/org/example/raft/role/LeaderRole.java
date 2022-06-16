@@ -23,6 +23,7 @@ import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
 import org.example.raft.dto.ChaseAfterLog;
 import org.example.raft.dto.Command;
+import org.example.raft.dto.DataChangeDto;
 import org.example.raft.dto.DataResponest;
 import org.example.raft.dto.GetData;
 import org.example.raft.dto.LogEntries;
@@ -38,7 +39,6 @@ import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.role.active.SendHeartbeat;
 import org.example.raft.role.active.SyncLogTask;
 import org.example.raft.service.RaftStatus;
-import org.example.raft.util.ByteUtil;
 import org.example.raft.util.RaftUtil;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
@@ -68,27 +68,29 @@ public class LeaderRole extends BaseRole implements Role {
 
   private long synLogTaskInterval;
 
-  private final byte[] datakeyprefix;
-
-  private int sendHeartbeatTimeout;
-
-  private long logIndex;
+  private volatile long logIndex;
 
   /**
    * lead 繁忙状态 ,可以通过获取 执行线程的队列和线程使用情况来标定繁忙程度，便于外部管理调度
    */
   public long busynessStatus = 0;
 
+  private List<SendHeartbeat> emptyHeartbeat;
+
+  /**
+   * 租约到期时间
+   */
+  public long leaseEndTime;
+
 
   public LeaderRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
       GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
       SaveLogTask saveLogTask) {
-    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask);
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask,conf);
     sendHeartbeatInterval = conf.getSendHeartbeatInterval();
-    this.datakeyprefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
     chaseAfterLogTaskInterval = conf.getChaseAfterLogTaskInterval();
     synLogTaskInterval = conf.getSynLogTaskInterval();
-    this.sendHeartbeatTimeout =conf.getSendHeartbeatTimeout();
+    sendHeartbeatTimeout = conf.getSendHeartbeatTimeout();
   }
 
   void init() {
@@ -104,12 +106,12 @@ public class LeaderRole extends BaseRole implements Role {
         }
       }
     });
-    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
+    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
     logIndex = maxLog.getLogIndex();
     synLogQueue = new LinkedBlockingDeque<>(1000);
-    syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus, synLogTaskInterval,sendHeartbeatTimeout);
-    chaseAfterLogTask = new ChaseAfterLogTask(raftStatus, roleStatus, saveLog,sendHeartbeatTimeout);
-
+    syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus, synLogTaskInterval, sendHeartbeatTimeout);
+    chaseAfterLogTask = new ChaseAfterLogTask(raftStatus, roleStatus, saveLog, sendHeartbeatTimeout);
+    emptyHeartbeat = getEmptyHeartbeats();
     executorService.submit(new SentFirstLog(maxLog.getTerm()));
   }
 
@@ -126,15 +128,7 @@ public class LeaderRole extends BaseRole implements Role {
       //组装发送日志
       LogEntries logEntrie = new LogEntries(logIndex, raftStatus.getCurrentTerm(),
           JSON.toJSONString(new Command(DataOperationType.EMPTY)));
-      LogEntries[] logEntries = new LogEntries[] {logEntrie};
-      AddLogRequest addLogRequest = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
-          logIndex - 1,
-          prevLogTerm, logEntries, raftStatus.getCommitIndex());
-      List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
-      RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLogRequest));
-      for (String address : raftStatus.getValidMembers()) {
-        sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, sendHeartbeatTimeout));
-      }
+      List<SendHeartbeat> sendHeartbeats = getSendHeartbeats(logEntrie);
 
       //开始发送日志
       try {
@@ -174,6 +168,8 @@ public class LeaderRole extends BaseRole implements Role {
           raftStatus.getFailedMembers().clear();
         }
         LOG.debug("同步日志完成");
+        raftStatus.setCommitIndex(logIndex);
+        commitIndex();
         raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
         chaseAfterLogTask.start(chaseAfterLogTaskInterval);
       } catch (InterruptedException | ExecutionException | RocksDBException e) {
@@ -181,6 +177,20 @@ public class LeaderRole extends BaseRole implements Role {
         //todo  直接退出了?
         System.exit(100);
       }
+    }
+
+    private List<SendHeartbeat> getSendHeartbeats(LogEntries logEntrie) {
+      LogEntries[] logEntries = new LogEntries[] {logEntrie};
+      AddLogRequest addLogRequest = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(),
+          raftStatus.getLocalAddress(),
+          logIndex - 1,
+          prevLogTerm, logEntries, raftStatus.getCommitIndex());
+      List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
+      RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLogRequest));
+      for (String address : raftStatus.getValidMembers()) {
+        sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, sendHeartbeatTimeout));
+      }
+      return sendHeartbeats;
     }
   }
 
@@ -191,25 +201,40 @@ public class LeaderRole extends BaseRole implements Role {
   public void work() {
 
     init();
-
-    List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
-    RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(new AddLogRequest(
-        raftStatus.getCurrentTerm(), raftStatus.getLocalAddress())));
-    for (String address : raftStatus.getValidMembers()) {
-      sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, sendHeartbeatTimeout));
-    }
     //开始发送心跳
     do {
       try {
         LOG.info("send heartbeat");
-        executorService.invokeAll(sendHeartbeats);
-        Thread.sleep(sendHeartbeatInterval);
-      } catch (InterruptedException e) {
+        long start = System.currentTimeMillis();
+        if (sendEmptyHeartbeat()) {
+          //更新租约时间(lease read 实现)
+          leaseEndTime = start+checkTimeoutInterval-1000;
+        }
+        long end = System.currentTimeMillis();
+        sleep(start, end);
+      } catch (InterruptedException | ExecutionException e) {
         e.printStackTrace();
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.LEADER);
 
     exit();
+  }
+
+  private void sleep(long start, long end) throws InterruptedException {
+    long l = sendHeartbeatInterval - (end - start);
+    if (l > 0) {
+      Thread.sleep(sendHeartbeatInterval);
+    }
+  }
+
+  private List<SendHeartbeat> getEmptyHeartbeats() {
+    List<SendHeartbeat> emptyHeartbeat = new LinkedList<>();
+    RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(new AddLogRequest(
+        raftStatus.getCurrentTerm(), raftStatus.getLocalAddress())));
+    for (String address : raftStatus.getValidMembers()) {
+      emptyHeartbeat.add(new SendHeartbeat(roleStatus, request, address, sendHeartbeatTimeout));
+    }
+    return emptyHeartbeat;
   }
 
   private void exit() {
@@ -262,15 +287,9 @@ public class LeaderRole extends BaseRole implements Role {
   @Override
   public DataResponest getData(GetData request) {
     inService();
-    byte[] value;
-    try {
-      value = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
-    } catch (RocksDBException e) {
-      LOG.error("查询数据失败：" + e.getMessage(), e);
-      return new DataResponest(StatusCode.SYSTEMEXCEPTION, null);
-    }
-    return new DataResponest(StatusCode.SUCCESS, new String(value));
+    return getDataCommon(request);
   }
+
 
   /**
    * @param request
@@ -301,6 +320,9 @@ public class LeaderRole extends BaseRole implements Role {
           raftStatus.setCommitIndex(logIndex);
           //将成功提交的日志添加到应用日志队列中
           applyLogQueue.add(taskMaterial.getResult());
+          if (logIndex == raftStatus.getCommitIndex()) {
+            commitIndex();
+          }
         }
         return new DataResponest("成功了，哈哈");
       }
@@ -312,5 +334,44 @@ public class LeaderRole extends BaseRole implements Role {
       LOG.warn("leader -> set data exception  " + e.getMessage());
     }
     return new DataResponest(StatusCode.SYNLOG, "leader->setdata: synchronization log failed");
+  }
+
+  @Override
+  public DataResponest doDataExchange() {
+    long commitIndexTmp = raftStatus.getCommitIndex();
+    try {
+      if (sendEmptyHeartbeat()) {
+        return new DataResponest(StatusCode.SUCCESS, JSON.toJSONString(new DataChangeDto(commitIndexTmp)));
+      }
+    } catch (Exception ignored) {
+    }
+    return new DataResponest(StatusCode.SYSTEMEXCEPTION);
+  }
+
+
+  private boolean sendEmptyHeartbeat() throws InterruptedException, ExecutionException {
+    List<Future<SynchronizeLogResult>> futures = executorService
+        .invokeAll(emptyHeartbeat, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
+    int count = 1;
+    for (Future<SynchronizeLogResult> future : futures) {
+      if (future.get().isSuccess()) {
+        count++;
+      }
+    }
+    if (raftStatus.getPersonelNum() - count < count) {
+      return true;
+    }
+    return false;
+  }
+
+
+  private void commitIndex() throws InterruptedException {
+    List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
+    RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(new AddLogRequest(
+        raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(), raftStatus.getCommitIndex())));
+    for (String address : raftStatus.getValidMembers()) {
+      sendHeartbeats.add(new SendHeartbeat(roleStatus, request, address, sendHeartbeatTimeout));
+    }
+    executorService.invokeAll(sendHeartbeats, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
   }
 }

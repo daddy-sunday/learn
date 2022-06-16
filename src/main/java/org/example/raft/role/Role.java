@@ -47,4 +47,7 @@ public interface Role {
   DataResponest setData(String request);
 
 
+  DataResponest dataExchange(String request);
+
+
 }

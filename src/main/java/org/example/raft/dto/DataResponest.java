@@ -16,6 +16,10 @@ public class DataResponest implements Serializable {
   public DataResponest() {
   }
 
+  public DataResponest(int status) {
+    this.status = status;
+  }
+
   public DataResponest(String message) {
     this.status = StatusCode.SUCCESS;
     this.message = message;

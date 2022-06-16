@@ -45,6 +45,12 @@ public class AddLogRequest {
     this.leaderId = leaderId;
   }
 
+  public AddLogRequest(long term, String leaderId,long leaderCommit) {
+    this.term = term;
+    this.leaderId = leaderId;
+    this.leaderCommit = leaderCommit;
+  }
+
   public AddLogRequest() {
   }
 

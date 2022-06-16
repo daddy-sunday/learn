@@ -90,9 +90,14 @@ public class RoleService {
   public Object processDataRequest(DataRequest request) {
     if (request.getType() == MessageType.GET) {
       return currentRole.getData(JSON.parseObject(request.getMessage(), GetData.class));
-    } else if (request.getType() == MessageType.SET) {
-      return currentRole.setData(request.getMessage());
-
+    } else {
+      switch (request.getType()) {
+        case MessageType.SET:
+          return currentRole.setData(request.getMessage());
+        case MessageType.READ_INDEX:
+          return currentRole.dataExchange(request.getMessage());
+        default:
+      }
     }
     LOG.error("处理请求类型不支持 request：" + request);
     return new DataResponest(StatusCode.UNSUPPORT_REQUEST_TYPE, "处理请求类型不支持,数据接口类型只能是 MessageType.GET  MessageType.SET ");
