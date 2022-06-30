@@ -1,0 +1,1 @@
+1.0.0  完成基本raft基本功能，不能做配置变更，leader漂移，snapshort等能力
