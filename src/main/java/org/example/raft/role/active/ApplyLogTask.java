@@ -60,6 +60,7 @@ public class ApplyLogTask {
     this.raftStatus = raftStatus;
     this.saveData = saveData;
     this.interval = config.getApplyLogTaskInterval();
+    this.saveLog = saveLog;
   }
 
   public void start() {
@@ -84,23 +85,23 @@ public class ApplyLogTask {
       return;
     }
     LogEntries[] peek = logQueue.peek();
-    long longIndex = peek[0].getLogIndex();
-    if (longIndex > raftStatus.getCommitIndex()) {
-      LOG.debug("跳过执行： longIndex :"+ longIndex +" > commitIndex :"+raftStatus.getCommitIndex());
+    long logIndex = peek[0].getLogIndex();
+    if (logIndex > raftStatus.getCommitIndex()) {
+      LOG.debug("跳过执行： longIndex :" + logIndex + " > commitIndex :" + raftStatus.getCommitIndex());
       return;
     }
 
     try {
       //todo 第一次运行时会有应用日志不连续的问题，有时间可以优化到初始化中
-      if (raftStatus.getLastApplied() + 1 != longIndex) {
-        if (!applyLog()) {
+      if (raftStatus.getLastApplied() + 1 != logIndex) {
+        if (!applyLog(raftStatus.getLastApplied() + 1, logIndex)) {
           LOG.error("应用log日志时出现逻辑错误");
           System.exit(100);
         }
       }
-      LOG.debug("检查到需要存储的任务数: " + size);
+      LOG.debug("检查到需要应用的任务数: " + size);
       WriteBatch writeBatch = new WriteBatch();
-      long logIndex = 0;
+      logIndex = 0;
       for (int i = 0; i < size; i++) {
         LogEntries[] addLogs = logQueue.remove();
         saveData.assembleData(writeBatch, addLogs, dataKeyPrefix);
@@ -124,6 +125,9 @@ public class ApplyLogTask {
       LOG.error("写入data失败", e);
       //todo  重试写入失败后退出程序 ?
       System.exit(100);
+    } catch (Exception e) {
+      LOG.error("未知错误", e);
+      System.exit(100);
     }
     LOG.debug("应用log日志完成");
   }
@@ -133,25 +137,23 @@ public class ApplyLogTask {
    * @return
    * @throws RocksDBException
    */
-  private boolean applyLog() throws RocksDBException {
-    long commitIndex = raftStatus.getCommitIndex();
-    long lastApplied = raftStatus.getLastApplied();
-    byte[] bytes = RaftUtil.generateDataKey(raftStatus.getGroupId());
-    if (lastApplied < commitIndex) {
-      LOG.info("恢复应用日志："+lastApplied+" -> "+commitIndex);
+  private boolean applyLog(long lastApplied, long logIndex) throws RocksDBException {
+    if (lastApplied < logIndex) {
+      LOG.info("恢复应用日志：" + lastApplied + " -> " + logIndex);
       SaveIterator scan = saveLog.scan(RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied),
-          RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied));
+          RaftUtil.generateLogKey(raftStatus.getGroupId(), logIndex));
       //todo 优化 数据量很大时有内存溢出的风险
       WriteBatch writeBatch = new WriteBatch();
-      for (scan.seek(); scan.valied(); scan.next()) {
+      for (scan.seek(); scan.isValied(); scan.next()) {
         byte[] value = scan.getValue();
-        LogEntries[] entries = JSON.parseObject(value, LogEntries[].class);
-        saveData.assembleData(writeBatch, entries, bytes);
+        LogEntries entries = JSON.parseObject(value, LogEntries.class);
+        saveData.assembleData(writeBatch, new LogEntries[] {entries}, dataKeyPrefix);
       }
       //提交 applied id  随批提交应用日志记录，保证原子性
-      writeBatch.put(RaftUtil.generateApplyLogKey(raftStatus.getGroupId()), ByteUtil.longToBytes(commitIndex));
+      writeBatch.put(RaftUtil.generateApplyLogKey(raftStatus.getGroupId()), ByteUtil.longToBytes(logIndex));
       saveData.writBatch(writeBatch);
-      LOG.info("应用日志完成：" + lastApplied + " -> " + commitIndex);
+      raftStatus.setLastApplied(logIndex);
+      LOG.info("应用日志完成：" + lastApplied + " -> " + logIndex);
       return true;
     }else {
       return false;

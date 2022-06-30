@@ -13,7 +13,7 @@ public class GlobalConfig {
   /**
    * follow检查心跳间隔
    */
- private long checkTimeoutInterval = 60000;
+ private long checkTimeoutInterval = 20000;
 
  private String otherNode = "localhost:20000,localhost:20001,localhost:20002";
 

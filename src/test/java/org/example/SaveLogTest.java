@@ -3,6 +3,7 @@ package org.example;
 import org.example.conf.GlobalConfig;
 import org.example.raft.dto.LogEntries;
 import org.example.raft.persistence.DefaultSaveLogImpl;
+import org.example.raft.persistence.SaveIterator;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.util.ByteUtil;
 import org.example.raft.util.RaftUtil;
@@ -10,6 +11,8 @@ import org.junit.Test;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 import org.rocksdb.WriteOptions;
+
+import com.alibaba.fastjson.JSON;
 
 /**
  *@author zhouzhiyuan
@@ -27,47 +30,36 @@ public class SaveLogTest {
     saveLog.delete(RaftUtil.generateLogKey(1, 7));
   }
 
+  @Test
+  public void setSaveLogScan() throws RocksDBException {
+    GlobalConfig config = new GlobalConfig();
+    config.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log");
+    saveLog = new DefaultSaveLogImpl(config);
+
+    SaveIterator scan = saveLog.scan(new byte[] {1}, new byte[] {100});
+    for (scan.seek(); scan.isValied(); scan.next()) {
+      byte[] value = scan.getValue();
+      LogEntries entries = JSON.parseObject(value, LogEntries.class);
+      System.out.println(value);
+    }
+  }
 
   @Test
   public void findAll() throws RocksDBException {
     String logPath = "C:\\Users\\zhouz\\Desktop\\raft\\log";
     System.out.println(logPath);
-     traverseLogSave(logPath,false);
+    traverseLogSave(logPath, false);
     for (int i = 2; i <= 5; i++) {
       System.out.println(logPath + i);
-      traverseLogSave(logPath+i,false);
+      traverseLogSave(logPath + i, false);
     }
 
     String dataPath = "C:\\Users\\zhouz\\Desktop\\raft\\data";
     System.out.println(dataPath);
-    traverseDataSave(dataPath);
+    traverseDataSave(dataPath, false);
     for (int i = 2; i <= 5; i++) {
       System.out.println(dataPath + i);
-      traverseDataSave(dataPath+i);
-    }
-  }
-
-  private void traverseLogSave(String logPath,boolean delFalg) throws RocksDBException {
-    GlobalConfig config = new GlobalConfig();
-    config.setLogPath(logPath);
-    saveLog = new DefaultSaveLogImpl(config);
-    if (delFalg){
-      saveLog.deleteRange(TestByteUtil.intToBytes(1),TestByteUtil.intToBytes(9));
-    }
-
-    RocksIterator iterator = saveLog.getIterator();
-    for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-      System.out.println(TestByteUtil.parseLogKey(iterator.key()) + " = " + new String(iterator.value()));
-    }
-  }
-
-  private void traverseDataSave(String logPath) throws RocksDBException {
-    GlobalConfig config = new GlobalConfig();
-    config.setLogPath(logPath);
-    saveLog = new DefaultSaveLogImpl(config);
-    RocksIterator iterator = saveLog.getIterator();
-    for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-      System.out.println(TestByteUtil.parseDataKey(iterator.key()) + " = " + new String(iterator.value()));
+      traverseDataSave(dataPath + i, false);
     }
   }
 
@@ -75,20 +67,53 @@ public class SaveLogTest {
   public void deleteAll() throws RocksDBException {
     String logPath = "C:\\Users\\zhouz\\Desktop\\raft\\log";
     System.out.println(logPath);
-    traverseLogSave(logPath,true);
+    traverseLogSave(logPath, true);
     for (int i = 2; i <= 5; i++) {
       System.out.println(logPath + i);
-      traverseLogSave(logPath+i,true);
+      traverseLogSave(logPath + i, true);
     }
 
     String dataPath = "C:\\Users\\zhouz\\Desktop\\raft\\data";
     System.out.println(dataPath);
-    traverseDataSave(dataPath);
+    traverseDataSave(dataPath, true);
     for (int i = 2; i <= 5; i++) {
       System.out.println(dataPath + i);
-      traverseDataSave(dataPath+i);
+      traverseDataSave(dataPath + i, true);
     }
   }
+
+
+  private void traverseLogSave(String logPath, boolean delFalg) throws RocksDBException {
+    GlobalConfig config = new GlobalConfig();
+    config.setLogPath(logPath);
+    saveLog = new DefaultSaveLogImpl(config);
+    if (delFalg) {
+      saveLog.deleteRange(new byte[] {1}, new byte[] {Byte.MAX_VALUE});
+    }
+    RocksIterator iterator = saveLog.getIterator();
+    for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+      System.out.println(TestByteUtil.parseLogKey(iterator.key()) + " = " + new String(iterator.value()));
+    }
+  }
+
+  private void traverseDataSave(String logPath, boolean delFalg) throws RocksDBException {
+    GlobalConfig config = new GlobalConfig();
+    config.setLogPath(logPath);
+    saveLog = new DefaultSaveLogImpl(config);
+    if (delFalg) {
+      saveLog.deleteRange(new byte[] {1}, new byte[] {Byte.MAX_VALUE});
+    }
+    RocksIterator iterator = saveLog.getIterator();
+    for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+      String s = TestByteUtil.parseDataKey(iterator.key());
+      if (s.equals("2_1")) {
+        System.out.println(s + " = " + TestByteUtil.bytesToLong(iterator.value()));
+      } else {
+        System.out.println(s + " = " + new String(iterator.value()));
+      }
+    }
+  }
+
 
 
 

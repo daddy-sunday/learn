@@ -29,11 +29,13 @@ public class SaveIterator {
     iterator.next();
   }
 
-  public boolean valied() {
+  public boolean isValied() {
     if (iterator.isValid()) {
       iterator.key();
       if (ByteUtil.bytesCompare(iterator.key(), endKey) <= 0) {
         return true;
+      }else {
+        return false;
       }
     }
     return false;

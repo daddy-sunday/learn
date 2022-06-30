@@ -21,6 +21,7 @@ import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.StringUtils;
 
 import com.alibaba.fastjson.JSON;
 
@@ -95,25 +96,30 @@ public class FollowRole extends BaseRole implements Role {
   public DataResponest getData(GetData request) {
     inService();
     try {
+      if (StringUtils.isEmpty(raftStatus.getLeaderAddress())) {
+        return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，还没有收到leader消息，请等待一会重试");
+      }
       DataChangeDto dataChangeDto = DefaultRpcClient
           .dataChange(raftStatus.getLeaderAddress(), sendHeartbeatTimeout, RoleStatus.LEADER);
-      while (raftStatus.getLastApplied() < dataChangeDto.getCommitIndex()) {
-        LOG.debug("appliedIndex <  leader commitIndex : " + raftStatus.getLastApplied() + "<" + dataChangeDto
-            .getCommitIndex() + " 等待");
-        Thread.sleep(100);
-      }
+      waitApplyIndexComplate(dataChangeDto.getCommitIndex());
       return getDataCommon(request);
     } catch (Exception e) {
       LOG.error("获取leader commitIndex 失败", e);
     }
 
-    return new DataResponest(StatusCode.REDIRECT, raftStatus.getLeaderAddress());
+    return new DataResponest(StatusCode.SYSTEMEXCEPTION, "系统异常：请查看系统日志");
   }
+
 
   @Override
   public DataResponest setData(String request) {
     inService();
-    return new DataResponest(StatusCode.REDIRECT, raftStatus.getLeaderAddress());
+    String leaderAddress = raftStatus.getLeaderAddress();
+    if (StringUtils.isEmpty(leaderAddress)) {
+      return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，还没有收到leader消息，请等待一会重试");
+    }
+
+    return new DataResponest(StatusCode.REDIRECT, leaderAddress);
   }
 
   @Override

@@ -3,6 +3,7 @@ package org.example.raft.role;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.example.conf.GlobalConfig;
@@ -91,6 +92,26 @@ public abstract class BaseRole implements Role {
   }
 
   /**
+   * todo 这个方法的超时 时间需要支持配置
+   * @param commitIndex
+   * @throws Exception
+   */
+  void waitApplyIndexComplate(long commitIndex) throws Exception {
+    int count = 1;
+    while (raftStatus.getLastApplied() < commitIndex) {
+      LOG.debug("appliedIndex <  leader commitIndex : " + raftStatus.getLastApplied() + "<" + commitIndex + " 等待");
+      try {
+        Thread.sleep(200);
+      } catch (InterruptedException ignored) {
+      }
+      if (count >= 50) {
+        throw new TimeoutException("等待applied log 超时 10s");
+      }
+      count++;
+    }
+  }
+
+  /**
    * 接收者实现：
    *
    * 如果term < currentTerm返回 false （5.2 节）
@@ -138,10 +159,11 @@ public abstract class BaseRole implements Role {
     }
     LogEntries[] entries = request.getEntries();
     if (entries == null) {
-      //接收到心跳日志，更新超时时间
-      LOG.debug("接收心跳日志: 更新follow超时时间和commitIndex");
+      LOG.debug("接收心跳日志: 更新follow超时时间");
       raftStatus.setLastTime();
+      raftStatus.setLeaderAddress(request.getLeaderId());
       if (request.getLeaderCommit() > raftStatus.getCommitIndex()) {
+        LOG.debug("接收心跳日志: 更新commitIndex");
         raftStatus.setCommitIndex(request.getLeaderCommit());
       }
       return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
@@ -214,7 +236,8 @@ public abstract class BaseRole implements Role {
 
   @Override
   public DataResponest dataExchange(String request) {
-    if (roleStatus.getNodeStatus() == Integer.parseInt(request, 10)) {
+    if (roleStatus.getNodeStatus() != Integer.parseInt(request, 10)) {
+      LOG.warn("当前角色：" + roleStatus.getNodeStatus() + " 请求的角色：" + Integer.parseInt(request, 10));
       return new DataResponest(StatusCode.UNSUPPORT_REQUEST_FUNCATION, "当前角色发生切换，不能正常响应消息");
     }
     return doDataExchange();

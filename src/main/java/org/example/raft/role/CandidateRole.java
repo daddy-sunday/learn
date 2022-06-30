@@ -10,6 +10,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.example.conf.GlobalConfig;
 import org.example.raft.constant.ServiceStatus;
 import org.example.raft.constant.StatusCode;
 import org.example.raft.dto.AddLogRequest;
@@ -37,9 +38,9 @@ public class CandidateRole extends BaseRole implements Role {
   private static final Logger LOG = LoggerFactory.getLogger(CandidateRole.class);
 
   public CandidateRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
-      BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
+      GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
       SaveLogTask saveLogTask) {
-    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask);
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask, conf);
   }
 
   /**
@@ -70,7 +71,6 @@ public class CandidateRole extends BaseRole implements Role {
         raftStatus.setVotedFor(null);
         //投票结果，默认每次选举都给自己投一票
         int tickets = 1;
-        //todo  并发控制, 我认为这里是可以容忍的更新丢失
         raftStatus.currentTermAddOne();
         request.setTerm(raftStatus.getCurrentTerm());
         //get方法为阻塞方法，所以等待时间放入线程中
@@ -151,12 +151,12 @@ public class CandidateRole extends BaseRole implements Role {
 
   @Override
   public DataResponest getData(GetData request) {
-    return new DataResponest(StatusCode.SLEEP, null);
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
   }
 
   @Override
   public DataResponest setData(String request) {
-    return new DataResponest(StatusCode.SLEEP, null);
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
   }
 
   @Override

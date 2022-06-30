@@ -52,7 +52,7 @@ public class RoleService {
         saveLogTask);
     leaderRole = new LeaderRole(saveData, saveLog, raftStatus, roleStatus, config, applyLogQueue, saveLogQueue,
         saveLogTask);
-    candidateRole = new CandidateRole(saveData, saveLog, raftStatus, roleStatus, applyLogQueue, saveLogQueue,
+    candidateRole = new CandidateRole(saveData, saveLog, raftStatus, roleStatus, config,applyLogQueue, saveLogQueue,
         saveLogTask);
     this.roleStatus = roleStatus;
   }

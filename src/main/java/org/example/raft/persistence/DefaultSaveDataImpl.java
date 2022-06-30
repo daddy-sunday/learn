@@ -26,16 +26,12 @@ public class DefaultSaveDataImpl implements SaveData {
 
   private RocksDB rocksDB;
 
-  private WriteOptions writeOptions;
-
-
   public DefaultSaveDataImpl(GlobalConfig config) throws RocksDBException {
     File file = new File(config.getDataPath());
     if (!file.exists()) {
       file.mkdirs();
     }
     rocksDB = RocksDB.open(config.getDataPath());
-    writeOptions = new WriteOptions();
     //writeOptions.setDisableWAL(true);
   }
 
@@ -56,7 +52,8 @@ public class DefaultSaveDataImpl implements SaveData {
 
   @Override
   public boolean update(byte[] key, byte[] value) throws RocksDBException {
-    if (rocksDB.keyMayExist(key, new StringBuilder())) {
+
+    if (rocksDB.get(key) != null) {
       rocksDB.put(key, value);
       return true;
     } else {
@@ -105,6 +102,6 @@ public class DefaultSaveDataImpl implements SaveData {
 
   @Override
   public void writBatch(WriteBatch batch ) throws RocksDBException {
-    rocksDB.write(writeOptions,batch);
+    rocksDB.write(new WriteOptions(), batch);
   }
 }

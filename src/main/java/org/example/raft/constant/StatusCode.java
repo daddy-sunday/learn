@@ -29,6 +29,8 @@ public class StatusCode {
 
   public static final int UNSUPPORT_REQUEST_FUNCATION =  501;
 
+  public static final int RAFT_UNABLE_SERVER =  600;
+
   /**
    * 接收端异常
    */

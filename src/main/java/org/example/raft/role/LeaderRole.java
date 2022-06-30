@@ -4,6 +4,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -80,7 +81,7 @@ public class LeaderRole extends BaseRole implements Role {
   /**
    * 租约到期时间
    */
-  public long leaseEndTime;
+  public volatile long leaseEndTime;
 
 
   public LeaderRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
@@ -208,16 +209,20 @@ public class LeaderRole extends BaseRole implements Role {
         long start = System.currentTimeMillis();
         if (sendEmptyHeartbeat()) {
           //更新租约时间(lease read 实现)
-          leaseEndTime = start+checkTimeoutInterval-1000;
+          leaseEndTime = start + checkTimeoutInterval - 1000;
         }
         long end = System.currentTimeMillis();
         sleep(start, end);
-      } catch (InterruptedException | ExecutionException e) {
-        e.printStackTrace();
+      } catch (InterruptedException e) {
+        LOG.error("心跳睡眠中断", e);
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.LEADER);
 
     exit();
+  }
+
+  private boolean validLease() {
+    return leaseEndTime > System.currentTimeMillis();
   }
 
   private void sleep(long start, long end) throws InterruptedException {
@@ -287,7 +292,20 @@ public class LeaderRole extends BaseRole implements Role {
   @Override
   public DataResponest getData(GetData request) {
     inService();
-    return getDataCommon(request);
+    if (!validLease()) {
+      LOG.debug("租约无效，执行readIndex read");
+      if (!sendEmptyHeartbeat()) {
+        return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "leader节点不能被大多数节点承认,读取数据失败");
+      }
+    }
+
+    try {
+      waitApplyIndexComplate(raftStatus.getCommitIndex());
+      return getDataCommon(request);
+    } catch (Exception e) {
+      LOG.error("获取leader commitIndex 失败", e);
+    }
+    return new DataResponest(StatusCode.SYSTEMEXCEPTION, "系统异常：请查看系统日志");
   }
 
 
@@ -349,15 +367,21 @@ public class LeaderRole extends BaseRole implements Role {
   }
 
 
-  private boolean sendEmptyHeartbeat() throws InterruptedException, ExecutionException {
-    List<Future<SynchronizeLogResult>> futures = executorService
-        .invokeAll(emptyHeartbeat, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
+  private boolean sendEmptyHeartbeat() {
+    List<Future<SynchronizeLogResult>> futures = null;
     int count = 1;
-    for (Future<SynchronizeLogResult> future : futures) {
-      if (future.get().isSuccess()) {
-        count++;
+    try {
+      futures = executorService
+          .invokeAll(emptyHeartbeat, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
+      for (Future<SynchronizeLogResult> future : futures) {
+        if (future.get().isSuccess()) {
+          count++;
+        }
       }
+    } catch (InterruptedException | ExecutionException | CancellationException e) {
+      LOG.error("发送心跳失败", e);
     }
+
     if (raftStatus.getPersonelNum() - count < count) {
       return true;
     }

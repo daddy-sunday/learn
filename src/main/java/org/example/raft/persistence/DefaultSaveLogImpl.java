@@ -21,8 +21,6 @@ public class DefaultSaveLogImpl implements SaveLog {
 
   private RocksDB rocksDB;
 
-  private WriteOptions writeOptions;
-
   public DefaultSaveLogImpl(GlobalConfig config) throws RocksDBException {
     File file = new File(config.getLogPath());
     if (!file.exists()) {
@@ -32,23 +30,22 @@ public class DefaultSaveLogImpl implements SaveLog {
     options.setCreateIfMissing(true);
     options.setMergeOperatorName("put");
     rocksDB = RocksDB.open(options, config.getLogPath());
-    writeOptions = new WriteOptions();
     //writeOptions.setDisableWAL(true);
   }
 
   @Override
   public void saveLog(byte[] key, LogEntries raftLog) throws RocksDBException {
-    rocksDB.put(writeOptions,key, JSON.toJSONBytes(raftLog));
+    rocksDB.put( new WriteOptions(),key, JSON.toJSONBytes(raftLog));
   }
 
   @Override
   public void saveLog(byte[] key, byte[] value) throws RocksDBException {
-    rocksDB.put(writeOptions,key, value);
+    rocksDB.put(new WriteOptions(),key, value);
   }
 
   @Override
   public void deleteRange(byte[] start, byte[] end) throws RocksDBException {
-    rocksDB.deleteRange(writeOptions,start, end);
+    rocksDB.deleteRange(new WriteOptions(),start, end);
   }
 
   @Override
@@ -94,6 +91,6 @@ public class DefaultSaveLogImpl implements SaveLog {
 
   @Override
   public void writBatch(WriteBatch batch ) throws RocksDBException {
-    rocksDB.write(writeOptions,batch);
+    rocksDB.write(new WriteOptions(),batch);
   }
 }

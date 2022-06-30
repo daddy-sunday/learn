@@ -17,6 +17,17 @@ import com.alipay.remoting.exception.RemotingException;
 public class RpcTest {
 
   public static Integer a = 10;
+
+  @Test
+  public void Clint1() {
+    try{
+      CloseTest test = new CloseTest();
+      System.out.println("haha");
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
   @Test
   public void Clint() throws RemotingException, InterruptedException {
 
@@ -24,6 +35,5 @@ public class RpcTest {
         .sendMessage("localhost:20000", new RaftRpcRequest(MessageType.VOTE, JSON.toJSONString(new VoteRequest())),
             30000);
     System.out.println(raftRpcResponest.toString());
-
   }
 }
