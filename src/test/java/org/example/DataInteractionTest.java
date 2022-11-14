@@ -17,19 +17,13 @@ import com.alipay.remoting.exception.RemotingException;
  *@date 2022/5/23
  */
 public class DataInteractionTest {
-  @Test
-  public void Clint() throws RemotingException, InterruptedException {
-    DataRequest request = new DataRequest();
-    Row row = new Row("wo1".getBytes(),"shi1".getBytes());
-    Command command = new Command(DataOperationType.INSERT,new Row[]{row});
-    request.setMessage(JSON.toJSONString(command));
-    request.setType(MessageType.SET);
-    for (int i = 0; i < 100; i++) {
-      DataResponest dataResponest = DefaultRpcClient.dataRequest("localhost:20002", request, 100000);
-      System.out.println(dataResponest);
-    }
-  }
 
+
+  /**
+   * 写入数据并查询
+   * @throws RemotingException
+   * @throws InterruptedException
+   */
   @Test
   public void Clint1() throws RemotingException, InterruptedException {
     Row row = new Row("王五".getBytes(),"103级".getBytes());
@@ -37,24 +31,17 @@ public class DataInteractionTest {
       System.out.println(dataResponest);
     System.out.println(DefaultRpcClient.get("localhost:20001", "王五", 10000));
   }
+
+  /**
+   * 查询数据
+   * @throws RemotingException
+   * @throws InterruptedException
+   */
   @Test
   public void ClintGet() throws RemotingException, InterruptedException {
     DataResponest dataResponest = DefaultRpcClient.get("localhost:20001", "王五", 10000);
     System.out.println(dataResponest);
   }
 
-
-  @Test
-  public void Clint3() throws RemotingException, InterruptedException {
-    DataRequest request = new DataRequest();
-    Row row = new Row("wo3".getBytes(),"shi3".getBytes());
-    Command command = new Command(DataOperationType.INSERT,new Row[]{row});
-    request.setMessage(JSON.toJSONString(command));
-    request.setType(MessageType.SET);
-    for (int i = 0; i < 100; i++) {
-      DataResponest dataResponest = DefaultRpcClient.dataRequest("localhost:20002", request, 100000);
-      System.out.println(dataResponest);
-    }
-  }
 
 }

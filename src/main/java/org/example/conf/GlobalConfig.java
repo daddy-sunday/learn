@@ -6,9 +6,9 @@ package org.example.conf;
  */
 public class GlobalConfig {
 
- private String logPath = "C:\\Users\\zhouz\\Desktop\\raft\\log";
+ private String logPath = "D:\\tmp\\raft\\log";
 
- private String dataPath = "C:\\Users\\zhouz\\Desktop\\raft\\data";
+ private String dataPath = "D:\\tmp\\raft\\data";
 
   /**
    * follow检查心跳间隔

@@ -17,6 +17,7 @@ import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.active.SaveLogTask;
 import org.example.raft.rpc.DefaultRpcClient;
+import org.example.raft.rpc.InternalRpcClient;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
@@ -99,7 +100,7 @@ public class FollowRole extends BaseRole implements Role {
       if (StringUtils.isEmpty(raftStatus.getLeaderAddress())) {
         return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，还没有收到leader消息，请等待一会重试");
       }
-      DataChangeDto dataChangeDto = DefaultRpcClient
+      DataChangeDto dataChangeDto = InternalRpcClient
           .dataChange(raftStatus.getLeaderAddress(), sendHeartbeatTimeout, RoleStatus.LEADER);
       waitApplyIndexComplate(dataChangeDto.getCommitIndex());
       return getDataCommon(request);

@@ -26,8 +26,8 @@ public class RaftServiceTest {
   @Test
   public void server2() throws InterruptedException, RocksDBException {
     GlobalConfig globalConfig = new GlobalConfig();
-    globalConfig.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log2");
-    globalConfig.setDataPath("C:\\Users\\zhouz\\Desktop\\raft\\data2");
+    globalConfig.setLogPath("D:\\tmp\\raft\\log2");
+    globalConfig.setDataPath("D:\\tmp\\raft\\data2");
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002,localhost:20003,localhost:20004");
     globalConfig.setPort(20001);
     globalConfig.setCurrentNode("localhost:20001");
@@ -38,8 +38,8 @@ public class RaftServiceTest {
   @Test
   public void server3() throws InterruptedException, RocksDBException {
     GlobalConfig globalConfig = new GlobalConfig();
-    globalConfig.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log3");
-    globalConfig.setDataPath("C:\\Users\\zhouz\\Desktop\\raft\\data3");
+    globalConfig.setLogPath("D:\\tmp\\raft\\log3");
+    globalConfig.setDataPath("D:\\tmp\\raft\\data3");
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002,localhost:20003,localhost:20004");
     globalConfig.setPort(20002);
     globalConfig.setCurrentNode("localhost:20002");
@@ -50,8 +50,8 @@ public class RaftServiceTest {
   @Test
   public void server4() throws InterruptedException, RocksDBException {
     GlobalConfig globalConfig = new GlobalConfig();
-    globalConfig.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log4");
-    globalConfig.setDataPath("C:\\Users\\zhouz\\Desktop\\raft\\data4");
+    globalConfig.setLogPath("D:\\tmp\\raft\\log4");
+    globalConfig.setDataPath("D:\\tmp\\raft\\data4");
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002,localhost:20003,localhost:20004");
     globalConfig.setPort(20003);
     globalConfig.setCurrentNode("localhost:20003");
@@ -62,8 +62,8 @@ public class RaftServiceTest {
   @Test
   public void server5() throws InterruptedException, RocksDBException {
     GlobalConfig globalConfig = new GlobalConfig();
-    globalConfig.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log5");
-    globalConfig.setDataPath("C:\\Users\\zhouz\\Desktop\\raft\\data5");
+    globalConfig.setLogPath("D:\\tmp\\raft\\log5");
+    globalConfig.setDataPath("D:\\tmp\\raft\\data5");
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002,localhost:20003,localhost:20004");
     globalConfig.setPort(20004);
     globalConfig.setCurrentNode("localhost:20004");

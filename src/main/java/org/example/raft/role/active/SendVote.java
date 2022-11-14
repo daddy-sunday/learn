@@ -7,6 +7,7 @@ import org.example.raft.dto.RaftRpcRequest;
 import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.VoteRequest;
 import org.example.raft.rpc.DefaultRpcClient;
+import org.example.raft.rpc.InternalRpcClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +35,7 @@ public class SendVote implements Callable<Boolean> {
   public Boolean call(){
     RaftRpcResponest raftRpcResponest = null;
     try{
-       raftRpcResponest = DefaultRpcClient
+       raftRpcResponest = InternalRpcClient
           .sendMessage(sendAddress, new RaftRpcRequest(MessageType.VOTE, JSON.toJSONString(voteRequest)),300);
     }catch (Exception e){
       LOG.warn("candidate-> send vote  failed: "+e.getMessage()+" address: "+sendAddress);

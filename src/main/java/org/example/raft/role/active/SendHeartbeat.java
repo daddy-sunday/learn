@@ -8,6 +8,7 @@ import org.example.raft.dto.RaftRpcResponest;
 import org.example.raft.dto.SynchronizeLogResult;
 import org.example.raft.role.RoleStatus;
 import org.example.raft.rpc.DefaultRpcClient;
+import org.example.raft.rpc.InternalRpcClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +43,7 @@ public class SendHeartbeat implements Callable<SynchronizeLogResult> {
   public SynchronizeLogResult call() {
     SynchronizeLogResult result;
     try {
-      RaftRpcResponest raftRpcResponest = DefaultRpcClient.sendMessage(sendAddress, raftRpcRequest,timeout);
+      RaftRpcResponest raftRpcResponest = InternalRpcClient.sendMessage(sendAddress, raftRpcRequest,timeout);
       if (raftRpcResponest.getFailCause() == StatusCode.MIN_TERM) {
         roleStatus.leaderToFollower();
         LOG.info("leader->send heartbeat : receive term > current term ,leader to follower");
