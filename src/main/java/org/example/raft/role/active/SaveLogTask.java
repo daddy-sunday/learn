@@ -21,9 +21,8 @@ import org.slf4j.LoggerFactory;
 import com.alibaba.fastjson.JSON;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/11/30
- * 存储日志  并应用到 数据存储库
+ * @author zhouzhiyuan
+ * @date 2021/11/30 存储日志  并应用到 数据存储库
  */
 
 public class SaveLogTask {
@@ -38,7 +37,11 @@ public class SaveLogTask {
 
   private SaveLog saveLog;
 
-  private volatile byte serviceStatus = 0;
+
+  /**
+   * 这个状态代表当前任务是否正在运行，
+   */
+  private volatile byte busyStatus = 0;
 
   private volatile long execTaskCount = 0;
 
@@ -63,57 +66,58 @@ public class SaveLogTask {
 
   /**
    * 每50ms写入一次数据
-   *
    */
   public void run() {
-
-    serviceStatus = ServiceStatus.IN_SERVICE;
-    execTaskCount += 1;
-
-    int size = logQueue.size();
-    if (size < 1) {
-     // LOG.debug("未监测到log需要存储: " + size);
-      serviceStatus = ServiceStatus.NON_SERVICE;
-      return;
-    }
-    LOG.debug("检查到需要存储的任务数: " + size);
-
-    WriteBatch writeBatch = new WriteBatch();
-    TaskMaterial[] taskMaterials = new TaskMaterial[size];
     try {
-      for (int i = 0; i < size; i++) {
-        TaskMaterial taskDto = logQueue.remove();
-        taskMaterials[i] = taskDto;
-        LogEntries[] addLog = taskDto.getAddLog();
-        for (LogEntries logEntries : addLog) {
-          writeBatch.put(RaftUtil.generateLogKey(raftStatus.getGroupId(), logEntries.getLogIndex()),
-              JSON.toJSONBytes(logEntries));
-        }
+      busyStatus = ServiceStatus.IN_SERVICE;
+      execTaskCount += 1;
+
+      int size = logQueue.size();
+      if (size < 1) {
+        busyStatus = ServiceStatus.NON_SERVICE;
+        return;
       }
-      saveLog.writBatch(writeBatch);
-    } catch (RocksDBException e) {
-      LOG.error("写入data失败", e);
-      //todo 重试写入，失败后退出？
-      System.exit(-1);
-    } catch (NoSuchElementException e) {
-      LOG.warn("队列中没有数据了，可能是raft发生了角色切换");
-      for (int i = 0; i < size; i++) {
-        if (taskMaterials[i] != null) {
-          taskMaterials[i].failed();
+      LOG.debug("检查到需要存储的任务数: " + size);
+
+      WriteBatch writeBatch = new WriteBatch();
+      TaskMaterial[] taskMaterials = new TaskMaterial[size];
+      try {
+        for (int i = 0; i < size; i++) {
+          TaskMaterial taskDto = logQueue.remove();
+          taskMaterials[i] = taskDto;
+          LogEntries[] addLog = taskDto.getAddLog();
+          for (LogEntries logEntries : addLog) {
+            writeBatch.put(RaftUtil.generateLogKey(raftStatus.getGroupId(), logEntries.getLogIndex()),
+                JSON.toJSONBytes(logEntries));
+          }
         }
+        saveLog.writBatch(writeBatch);
+      } catch (RocksDBException e) {
+        LOG.error("写入data失败", e);
+        //todo 重试写入，失败后退出？
+        System.exit(-1);
+      } catch (NoSuchElementException e) {
+        LOG.warn("队列中没有数据了，可能是raft发生了角色切换");
+        for (int i = 0; i < size; i++) {
+          if (taskMaterials[i] != null) {
+            taskMaterials[i].failed();
+          }
+        }
+        busyStatus = ServiceStatus.NON_SERVICE;
+        return;
       }
-      serviceStatus = ServiceStatus.NON_SERVICE;
-      return;
+      //一批任务更新一次commitLogIndex
+      taskMaterials[size - 1].setCommitLogIndexFlag();
+      //记录提交的这批数据
+      taskMaterials[size - 1].setResult(concatLogEntries(taskMaterials));
+      for (int i = 0; i < size; i++) {
+        taskMaterials[i].success();
+      }
+      busyStatus = ServiceStatus.NON_SERVICE;
+      LOG.debug("存储log日志完成");
+    } catch (Exception e) {
+      LOG.error("存储log日志线程异常: " + e.getMessage(), e);
     }
-    //一批任务更新一次commitLogIndex
-    taskMaterials[size - 1].setCommitLogIndexFlag();
-    //记录提交的这批数据
-    taskMaterials[size - 1].setResult(concatLogEntries(taskMaterials));
-    for (int i = 0; i < size; i++) {
-      taskMaterials[i].success();
-    }
-    serviceStatus = ServiceStatus.NON_SERVICE;
-    LOG.debug("存储log日志完成");
   }
 
   private LogEntries[] concatLogEntries(TaskMaterial[] taskMaterials) {
@@ -136,7 +140,7 @@ public class SaveLogTask {
   }
 
   public byte getServiceStatus() {
-    return serviceStatus;
+    return busyStatus;
   }
 
   public long getExecTaskCount() {
@@ -145,11 +149,12 @@ public class SaveLogTask {
 
   /**
    * 任务是否完成
+   *
    * @param execTaskCount
    * @return
    */
   public boolean taskComplete(long execTaskCount) {
-    if (serviceStatus == ServiceStatus.NON_SERVICE) {
+    if (busyStatus == ServiceStatus.NON_SERVICE) {
       return true;
     } else {
       if (this.execTaskCount > execTaskCount) {

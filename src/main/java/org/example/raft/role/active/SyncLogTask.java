@@ -76,9 +76,9 @@ public class SyncLogTask {
 
 
   public void run() {
+    try{
     int size = queue.size();
     if (size < 1) {
-      //LOG.debug("未监测到log需要同步: " + size);
       return;
     }
     LOG.debug("需要同步的log数 " + size);
@@ -99,7 +99,7 @@ public class SyncLogTask {
           logIndex - 1,
           raftStatus.getCurrentTerm(), logEntries, raftStatus.getCommitIndex());
 
-      //发送同步log
+      //发送log给follower
       List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
       for (String address : raftStatus.getValidMembers()) {
         sendHeartbeats.add(
@@ -109,7 +109,7 @@ public class SyncLogTask {
       List<Future<SynchronizeLogResult>> futures = executorService
           .invokeAll(sendHeartbeats, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
 
-// todo 优化，改为后台登台结果，不能影响发送
+      // todo 优化，改为后台等待结果，不能影响发送
       for (Future<SynchronizeLogResult> future : futures) {
         if (future.get().isSuccess()) {
           count++;
@@ -119,7 +119,7 @@ public class SyncLogTask {
           raftStatus.getValidMembers().remove(address);
           ChaseAfterLog chaseAfterLog = new ChaseAfterLog(address, raftStatus.getGroupId(), logIndex);
           raftStatus.getFailedMembers().add(chaseAfterLog);
-          LOG.debug("日志同步失败，地址添加到失败恢复队列："+chaseAfterLog);
+          LOG.error("日志同步失败，地址添加到失败恢复队列："+chaseAfterLog);
         }
       }
     } catch (Exception e) {
@@ -140,6 +140,10 @@ public class SyncLogTask {
       taskMaterials[i].success(count);
     }
     LOG.debug("同步log完成");
+
+    } catch (Exception e) {
+      LOG.error("存储log日志线程异常: " + e.getMessage(), e);
+    }
   }
 
 

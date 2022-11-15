@@ -43,6 +43,7 @@ public class ChaseAfterLog {
   public String toString() {
     return "ChaseAfterLog{" +
         "address='" + address + '\'' +
+        ", raftGroupId=" + raftGroupId +
         ", logId=" + logId +
         '}';
   }

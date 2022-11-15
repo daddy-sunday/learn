@@ -48,8 +48,8 @@ import org.slf4j.LoggerFactory;
 import com.alibaba.fastjson.JSON;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/10/27
+ * @author zhouzhiyuan
+ * @date 2021/10/27
  */
 public class LeaderRole extends BaseRole implements Role {
 
@@ -87,7 +87,7 @@ public class LeaderRole extends BaseRole implements Role {
   public LeaderRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
       GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
       SaveLogTask saveLogTask) {
-    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask,conf);
+    super(saveData, saveLogInterface, raftStatus, roleStatus, applyLogQueue, saveLogQueue, saveLogTask, conf);
     sendHeartbeatInterval = conf.getSendHeartbeatInterval();
     chaseAfterLogTaskInterval = conf.getChaseAfterLogTaskInterval();
     synLogTaskInterval = conf.getSynLogTaskInterval();
@@ -116,7 +116,7 @@ public class LeaderRole extends BaseRole implements Role {
     executorService.submit(new SentFirstLog(maxLog.getTerm()));
   }
 
-  class SentFirstLog implements Runnable{
+  class SentFirstLog implements Runnable {
     private long prevLogTerm;
 
     public SentFirstLog(long prevLogTerm) {
@@ -148,8 +148,8 @@ public class LeaderRole extends BaseRole implements Role {
             //日志不匹配
             if (future.get().getStatusCode() == StatusCode.NOT_MATCH_LOG_INDEX) {
               raftStatus.getFailedMembers().add(new ChaseAfterLog(address, raftStatus.getGroupId(), logIndex - 1));
-            }else {
-              LOG.debug("同步日志失败的任务地址：" + address+" 组id："+raftStatus.getGroupId());
+            } else {
+              raftStatus.getFailedMembers().add(new ChaseAfterLog(address, raftStatus.getGroupId(), logIndex));
             }
           }
         }
@@ -168,7 +168,7 @@ public class LeaderRole extends BaseRole implements Role {
           //清空失败的地址
           raftStatus.getFailedMembers().clear();
         }
-        LOG.debug("同步日志完成");
+        LOG.info("同步日志完成");
         raftStatus.setCommitIndex(logIndex);
         commitIndex();
         raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
@@ -217,7 +217,6 @@ public class LeaderRole extends BaseRole implements Role {
         LOG.error("心跳睡眠中断", e);
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.LEADER);
-
     exit();
   }
 
@@ -243,6 +242,7 @@ public class LeaderRole extends BaseRole implements Role {
   }
 
   private void exit() {
+    LOG.info("退出leader 状态");
     raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
     executorService.shutdownNow();
     executorService = null;
@@ -253,7 +253,7 @@ public class LeaderRole extends BaseRole implements Role {
     while (!synLogQueue.isEmpty()) {
       TaskMaterial poll = synLogQueue.poll();
       if (poll != null) {
-          poll.failed();
+        poll.failed();
       }
     }
 
@@ -271,6 +271,7 @@ public class LeaderRole extends BaseRole implements Role {
 
   /**
    * leader 不接受添加日志请求
+   *
    * @param request
    * @return
    */
@@ -281,6 +282,7 @@ public class LeaderRole extends BaseRole implements Role {
 
   /**
    * leader不参与选举
+   *
    * @param request
    * @return
    */
@@ -291,9 +293,12 @@ public class LeaderRole extends BaseRole implements Role {
 
   @Override
   public DataResponest getData(GetData request) {
-    inService();
+    if (!inService()) {
+      return new DataResponest(StatusCode.NON_SEVICE,
+          "服务正在初始化，请等待一会儿重试，状态：" + raftStatus.getServiceStatus());
+    }
     if (!validLease()) {
-      LOG.debug("租约无效，执行readIndex read");
+      LOG.error("租约无效，执行readIndex read");
       if (!sendEmptyHeartbeat()) {
         return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "leader节点不能被大多数节点承认,读取数据失败");
       }
@@ -315,14 +320,17 @@ public class LeaderRole extends BaseRole implements Role {
    */
   @Override
   public DataResponest setData(String request) {
-    inService();
+    if (!inService()) {
+      return new DataResponest(StatusCode.NON_SEVICE,
+          "服务正在初始化，请在等待一会重试，状态：" + raftStatus.getServiceStatus());
+    }
     CountDownLatch countDownLatch = new CountDownLatch(2);
     AtomicInteger ticketNum = new AtomicInteger();
     TaskMaterial taskMaterial;
     //此处加同步块的原因是 ，保证存储到队列的中的日志的logIndex是连续递增的
     synchronized (this) {
       logIndex += 1;
-      LogEntries[] logEntries = new LogEntries[]{new LogEntries(logIndex, raftStatus.getCurrentTerm(), request)};
+      LogEntries[] logEntries = new LogEntries[] {new LogEntries(logIndex, raftStatus.getCurrentTerm(), request)};
 
       //异步完成实际数据写入
       taskMaterial = new TaskMaterial(logEntries, countDownLatch, ticketNum);
@@ -356,12 +364,17 @@ public class LeaderRole extends BaseRole implements Role {
 
   @Override
   public DataResponest doDataExchange() {
-    long commitIndexTmp = raftStatus.getCommitIndex();
     try {
-      if (sendEmptyHeartbeat()) {
-        return new DataResponest(StatusCode.SUCCESS, JSON.toJSONString(new DataChangeDto(commitIndexTmp)));
+      //优化点：follower 请求commitIndex时先判断当前leader的租约是否有效如果有效就 不发送 空心跳确认leader地位 了。
+      if (!validLease()) {
+        LOG.error("租约无效，执行readIndex read");
+        if (!sendEmptyHeartbeat()) {
+          return new DataResponest(StatusCode.SYSTEMEXCEPTION, "leader节点不能被大多数节点承认,读取数据失败");
+        }
       }
-    } catch (Exception ignored) {
+      return new DataResponest(StatusCode.SUCCESS, JSON.toJSONString(new DataChangeDto(raftStatus.getCommitIndex())));
+    } catch (Exception e) {
+      LOG.error(e.getMessage(), e);
     }
     return new DataResponest(StatusCode.SYSTEMEXCEPTION);
   }

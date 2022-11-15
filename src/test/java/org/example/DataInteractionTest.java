@@ -26,10 +26,29 @@ public class DataInteractionTest {
    */
   @Test
   public void Clint1() throws RemotingException, InterruptedException {
-    Row row = new Row("王五".getBytes(),"103级".getBytes());
+    for (int i = 0; i < 100; i++) {
+      Row row = new Row((i+"王五和小六子").getBytes(),(i+"同学哈哈").getBytes());
       DataResponest dataResponest = DefaultRpcClient.put("localhost:20002", new Row[]{row}, 10000);
       System.out.println(dataResponest);
-    System.out.println(DefaultRpcClient.get("localhost:20001", "王五", 10000));
+    }
+  }
+
+  @Test
+  public void Clint2() throws RemotingException, InterruptedException {
+    for (int i = 100; i < 200; i++) {
+      Row row = new Row((i+"王五和小六子").getBytes(),(i+"同学哈哈").getBytes());
+      DataResponest dataResponest = DefaultRpcClient.put("localhost:20000", new Row[]{row}, 10000);
+      System.out.println(dataResponest);
+    }
+  }
+
+  @Test
+  public void Clint3() throws RemotingException, InterruptedException {
+    for (int i = 200; i < 300; i++) {
+      Row row = new Row((i+"王五和小六子").getBytes(),(i+"同学哈哈").getBytes());
+      DataResponest dataResponest = DefaultRpcClient.put("localhost:20000", new Row[]{row}, 10000);
+      System.out.println(dataResponest);
+    }
   }
 
   /**
@@ -39,8 +58,20 @@ public class DataInteractionTest {
    */
   @Test
   public void ClintGet() throws RemotingException, InterruptedException {
-    DataResponest dataResponest = DefaultRpcClient.get("localhost:20001", "王五", 10000);
-    System.out.println(dataResponest);
+    for (int i = 0; i < 50; i++) {
+      DataResponest dataResponest = DefaultRpcClient.get("localhost:20000", (i+"王五和小六子"), 10000);
+      System.out.println(dataResponest);
+
+    }
+  }
+
+  @Test
+  public void ClintDelete() throws RemotingException, InterruptedException {
+    for (int i = 0; i < 100; i++) {
+      Row row = new Row((i+"王五和小六子").getBytes(),(i+"同学哈哈").getBytes());
+      DataResponest dataResponest = DefaultRpcClient.delete("localhost:20004", new Row[]{row}, 10000);
+      System.out.println(dataResponest);
+    }
   }
 
 

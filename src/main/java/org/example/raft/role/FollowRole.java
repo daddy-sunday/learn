@@ -16,15 +16,14 @@ import org.example.raft.dto.VoteRequest;
 import org.example.raft.persistence.SaveData;
 import org.example.raft.persistence.SaveLog;
 import org.example.raft.role.active.SaveLogTask;
-import org.example.raft.rpc.DefaultRpcClient;
 import org.example.raft.rpc.InternalRpcClient;
 import org.example.raft.service.RaftStatus;
 import org.example.raft.util.RaftUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
 
 import com.alibaba.fastjson.JSON;
+import com.alipay.remoting.util.StringUtils;
 
 /**
  *@author zhouzhiyuan
@@ -46,7 +45,7 @@ public class FollowRole extends BaseRole implements Role {
    */
 
   private void init() {
-    //todo 还需要在进行一次状态初始化吗
+    LOG.info("followRole初始化开始");
     LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
     //接收log日志时判断日志是否连续使用
     raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
@@ -55,6 +54,7 @@ public class FollowRole extends BaseRole implements Role {
     raftStatus.setLastTime();
 
     raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
+    LOG.info("followRole初始化完成");
   }
 
   @Override
@@ -63,7 +63,7 @@ public class FollowRole extends BaseRole implements Role {
     do {
       try {
         Thread.sleep(checkTimeoutInterval);
-        LOG.info("check  heartbeat  ");
+        LOG.debug("check  heartbeat  ");
         long l = System.currentTimeMillis();
         if (raftStatus.getLastUpdateTime() + checkTimeoutInterval < l) {
           //超时 将当前角色转换为 candidate
@@ -95,7 +95,9 @@ public class FollowRole extends BaseRole implements Role {
 
   @Override
   public DataResponest getData(GetData request) {
-    inService();
+    if (!inService()) {
+      return new DataResponest(StatusCode.NON_SEVICE, "服务正在初始化，请换一个节点或者等以后儿重试，状态："+raftStatus.getServiceStatus());
+    }
     try {
       if (StringUtils.isEmpty(raftStatus.getLeaderAddress())) {
         return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，还没有收到leader消息，请等待一会重试");
@@ -114,10 +116,12 @@ public class FollowRole extends BaseRole implements Role {
 
   @Override
   public DataResponest setData(String request) {
-    inService();
+    if (!inService()) {
+      return new DataResponest(StatusCode.NON_SEVICE, "服务正在初始化，请换一个节点或者等以后儿重试，状态："+raftStatus.getServiceStatus());
+    }
     String leaderAddress = raftStatus.getLeaderAddress();
     if (StringUtils.isEmpty(leaderAddress)) {
-      return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，还没有收到leader消息，请等待一会重试");
+      return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，请等待一会重试");
     }
 
     return new DataResponest(StatusCode.REDIRECT, leaderAddress);

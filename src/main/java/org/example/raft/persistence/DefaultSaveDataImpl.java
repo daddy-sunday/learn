@@ -81,14 +81,14 @@ public class DefaultSaveDataImpl implements SaveData {
       int cmd = command.getCmd();
       Row[] rows = command.getRows();
       if (DataOperationType.INSERT == cmd) {
-        for (int i1 = 0; i1 < rows.length; i1++) {
-          batch.put(ByteUtil.concatBytes(prefixKey,rows[i].getKey()),rows[i].getValue());
+        for (Row row : rows) {
+          batch.put(ByteUtil.concatBytes(prefixKey, row.getKey()), row.getValue());
         }
       } else {
         switch (cmd) {
           case DataOperationType.DELETE:
-            for (int i1 = 0; i1 < rows.length; i1++) {
-              batch.delete(ByteUtil.concatBytes(prefixKey,rows[i].getKey()));
+            for (Row row : rows) {
+              batch.delete(ByteUtil.concatBytes(prefixKey, row.getKey()));
             }
             break;
           case DataOperationType.EMPTY:

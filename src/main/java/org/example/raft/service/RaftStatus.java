@@ -1,20 +1,22 @@
 package org.example.raft.service;
 
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.example.raft.dto.ChaseAfterLog;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/11/19
- * //todo  优化考虑一下每个成员变量是否需要使用 volatile类型
+ * @author zhouzhiyuan
+ * @date 2021/11/19 //todo  优化考虑一下每个成员变量是否需要使用 volatile类型
  */
 public class RaftStatus {
 
   /**
-   * 目前只有leader 有到了这个状态
    * 0：离线，1：在线，
    */
   private volatile byte serviceStatus = 0;
@@ -35,7 +37,7 @@ public class RaftStatus {
   private byte[] endKey;
 
   /**
-   *  data persistence status
+   * data persistence status
    */
 
   private volatile long currentTerm = 1;
@@ -79,22 +81,38 @@ public class RaftStatus {
   /**
    * leader地址，用于请求重定向
    */
-  private volatile String  leaderAddress;
+  private volatile String leaderAddress;
 
   /**
-   *follower 超时重新选举使用 ，每次同步心跳是更新这个时间
+   * follower 超时重新选举使用 ，每次同步心跳是更新这个时间
    */
   private volatile long lastUpdateTime;
 
   /**
-   *follower 使用，当前存储的日中的最大的logindex
+   * follower 使用，当前存储的日中的最大的logindex
    */
   private volatile long lastTimeLogIndex;
 
   /**
-   *follower 使用，当前存储的日中的最大的logindex的term
+   * follower 使用，当前存储的日中的最大的logindex的term
    */
   private volatile long lastTimeTerm;
+
+
+  //debug 使用
+  private ScheduledExecutorService scheduledExecutorService = new ScheduledThreadPoolExecutor(1,
+      e -> new Thread(e, "debug-raftStatus"));
+
+
+  public void initDebug() {
+  scheduledExecutorService = new ScheduledThreadPoolExecutor(1,
+        e -> new Thread(e, "debug-raftStatus"));
+  scheduledExecutorService.scheduleAtFixedRate(this::run,2000,30000, TimeUnit.MILLISECONDS);
+  }
+
+  public void run(){
+    toString();
+  }
 
 
   public boolean isInitFlag() {
@@ -250,5 +268,30 @@ public class RaftStatus {
 
   public void setLastUpdateTime(long lastUpdateTime) {
     this.lastUpdateTime = lastUpdateTime;
+  }
+
+  @Override
+  public String toString() {
+    return "RaftStatus{" +
+        "serviceStatus=" + serviceStatus +
+        ", initFlag=" + initFlag +
+        ", groupId=" + groupId +
+        ", startKey=" + Arrays.toString(startKey) +
+        ", endKey=" + Arrays.toString(endKey) +
+        ", currentTerm=" + currentTerm +
+        ", votedFor='" + votedFor + '\'' +
+        ", maxLogIndex=" + maxLogIndex +
+        ", commitIndex=" + commitIndex +
+        ", lastApplied=" + lastApplied +
+        ", allMembers=" + allMembers +
+        ", validMembers=" + validMembers +
+        ", failedMembers=" + failedMembers +
+        ", personelNum=" + personelNum +
+        ", localAddress='" + localAddress + '\'' +
+        ", leaderAddress='" + leaderAddress + '\'' +
+        ", lastUpdateTime=" + lastUpdateTime +
+        ", lastTimeLogIndex=" + lastTimeLogIndex +
+        ", lastTimeTerm=" + lastTimeTerm +
+        '}';
   }
 }

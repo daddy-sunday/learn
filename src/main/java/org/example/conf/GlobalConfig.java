@@ -29,22 +29,22 @@ public class GlobalConfig {
   /**
    * 保存log日志间隔
    */
- private long savelogTaskInterval = 3000;
+ private long savelogTaskInterval = 50;
 
   /**
    *同步log日志时间间隔
    */
- private long synLogTaskInterval = 3000;
+ private long synLogTaskInterval = 50;
 
   /**
    *应用log日志时间间隔
    */
- private long applyLogTaskInterval = 10000;
+ private long applyLogTaskInterval = 50;
 
   /**
    *检查追日志的任务时间间隔
    */
- private long chaseAfterLogTaskInterval = 10000;
+ private long chaseAfterLogTaskInterval = 30000;
 
   /**
    * 发送日志超时时间
@@ -52,14 +52,15 @@ public class GlobalConfig {
  private int  sendHeartbeatTimeout = 10000;
 
   /**
-   * 无服务等待时间间隔
+   * 无服务等待检查时间间隔(毫秒)
    */
- private int  noServiceWaitTime = 1000;
+ private int waitTimeInterval = 100;
 
   /**
-   * 无服务等待超时时间
+   * 无服务等待检查次数 ，noServiceWaitTime * noServiceTimeout = 无服务等待时间
    */
- private int  noServiceTimeout = 10000;
+ private int waitCount = 100;
+
 
 
 
@@ -71,23 +72,21 @@ public class GlobalConfig {
     this.sendHeartbeatTimeout = sendHeartbeatTimeout;
   }
 
-  public void setNoServiceWaitTime(int noServiceWaitTime) {
-    this.noServiceWaitTime = noServiceWaitTime;
+  public int getWaitTimeInterval() {
+    return waitTimeInterval;
   }
 
-  public int getNoServiceTimeout() {
-    return noServiceTimeout;
+  public void setWaitTimeInterval(int waitTimeInterval) {
+    this.waitTimeInterval = waitTimeInterval;
   }
 
-  public void setNoServiceTimeout(int noServiceTimeout) {
-    this.noServiceTimeout = noServiceTimeout;
+  public int getWaitCount() {
+    return waitCount;
   }
 
-  public long getNoServiceWaitTime() {
-    return noServiceWaitTime;
+  public void setWaitCount(int waitCount) {
+    this.waitCount = waitCount;
   }
-
-
 
   public long getSavelogTaskInterval() {
     return savelogTaskInterval;

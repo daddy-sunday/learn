@@ -40,6 +40,7 @@ public class RaftService {
     SaveLog saveLog = new DefaultSaveLogImpl(conf);
     SaveData saveData = new DefaultSaveDataImpl(conf);
     RaftStatus raftStatus = initRaftStatus(saveData, saveLog, conf);
+    raftStatus.initDebug();
     BlockingQueue<LogEntries[]> applyLogQueue = new LinkedBlockingDeque<>(1000);
     BlockingQueue<TaskMaterial> saveLogQueue = new LinkedBlockingDeque<>(1000);
     ApplyLogTask applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData,saveLog,conf);

@@ -27,8 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/10/29
+ * @author zhouzhiyuan
+ * @date 2021/10/29
  */
 public abstract class BaseRole implements Role {
 
@@ -54,6 +54,10 @@ public abstract class BaseRole implements Role {
 
   final byte[] datakeyprefix;
 
+  private int waitTimeInterval = 100;
+
+  private int waitCount = 100;
+
 
   public BaseRole(SaveData saveData, SaveLog saveLog, RaftStatus raftStatus, RoleStatus roleStatus,
       BlockingQueue<LogEntries[]> applyLogQueue,
@@ -68,31 +72,41 @@ public abstract class BaseRole implements Role {
     this.datakeyprefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
     this.checkTimeoutInterval = conf.getCheckTimeoutInterval();
     this.sendHeartbeatTimeout = conf.getSendHeartbeatTimeout();
+    waitTimeInterval = conf.getWaitTimeInterval();
+    waitCount = conf.getWaitCount();
   }
 
-  public void inService() {
+  public boolean inService() {
+    int count = 1;
     while (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
       try {
-        LOG.debug("当前角色不在服务状态，等待。状态：" + raftStatus.getServiceStatus() + "角色：" + roleStatus.getNodeStatus());
-        Thread.sleep(100);
+        LOG.debug(
+            "当前角色不在服务状态，等上一会儿。状态：" + raftStatus.getServiceStatus() + "角色："
+                + roleStatus.getNodeStatus());
+        Thread.sleep(waitTimeInterval);
       } catch (InterruptedException ignored) {
       }
+      if (count >= waitCount) {
+        return false;
+      }
+      count++;
     }
+    return true;
   }
 
   DataResponest getDataCommon(GetData request) {
-    byte[] value;
     try {
-      value = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
+      byte[] value = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
+      return new DataResponest(StatusCode.SUCCESS, value == null ? null : new String(value));
     } catch (RocksDBException e) {
       LOG.error("查询数据失败：" + e.getMessage(), e);
-      return new DataResponest(StatusCode.SYSTEMEXCEPTION, null);
+      return new DataResponest(StatusCode.SYSTEMEXCEPTION, "服务内部错误，请查看服务器日志");
     }
-    return new DataResponest(StatusCode.SUCCESS, new String(value));
   }
 
   /**
    * todo 这个方法的超时 时间需要支持配置
+   *
    * @param commitIndex
    * @throws Exception
    */
@@ -101,10 +115,10 @@ public abstract class BaseRole implements Role {
     while (raftStatus.getLastApplied() < commitIndex) {
       LOG.debug("appliedIndex <  leader commitIndex : " + raftStatus.getLastApplied() + "<" + commitIndex + " 等待");
       try {
-        Thread.sleep(200);
+        Thread.sleep(waitTimeInterval);
       } catch (InterruptedException ignored) {
       }
-      if (count >= 50) {
+      if (count >= waitCount) {
         throw new TimeoutException("等待applied log 超时 10s");
       }
       count++;
@@ -113,9 +127,9 @@ public abstract class BaseRole implements Role {
 
   /**
    * 接收者实现：
+   * <p>
+   * 如果term < currentTerm返回 false （5.2 节） 如果 votedFor 为空或者为 candidateId，并且候选人的日志至少和自己一样新，那么就投票给他（5.2 节，5.4 节）
    *
-   * 如果term < currentTerm返回 false （5.2 节）
-   * 如果 votedFor 为空或者为 candidateId，并且候选人的日志至少和自己一样新，那么就投票给他（5.2 节，5.4 节）
    * @param request
    * @return
    */
@@ -132,7 +146,8 @@ public abstract class BaseRole implements Role {
         LOG.debug("投票给: " + request.getCandidateId() + " " + request.getTerm());
         return true;
       } else {
-        LOG.debug("不能投票，请求的logIndex小于当前的logindex：" + request.getLastLogIndex() + ">=" + raftStatus.getCommitIndex());
+        LOG.debug("不能投票，请求的logIndex小于当前的logindex：" + request.getLastLogIndex() + ">="
+            + raftStatus.getCommitIndex());
       }
     }
     LOG.debug("已经投过票了,不能重复投票：" + raftStatus.getVotedFor());
@@ -140,16 +155,15 @@ public abstract class BaseRole implements Role {
   }
 
   /**
-   * 目前的实现 当前方法不会被并发访问，因为发送方只有一个leader
-   * 接收者的实现：
-   *
-   * 返回假 如果领导者的任期 小于 接收者的当前任期（译者注：这里的接收者是指跟随者或者候选者）（5.1 节）
-   * 返回假 如果接收者日志中没有包含这样一个条目 即该条目的任期在prevLogIndex上能和prevLogTerm匹配上 （译者注：在接收者日志中 如果能找到一个和prevLogIndex以及prevLogTerm一样的索引和任期的日志条目 则继续执行下面的步骤 否则返回假）（5.3 节）
-   * 如果一个已经存在的条目和新条目（译者注：即刚刚接收到的日志条目）发生了冲突（因为索引相同，任期不同），那么就删除这个已经存在的条目以及它之后的所有条目 （5.3 节）
-   * 追加日志中尚未存在的任何新条目
-   * 如果领导者的已知已经提交的最高的日志条目的索引leaderCommit 大于 接收者的已知已经提交的最高的日志条目的索引commitIndex 则把 接收者的已知已经提交的最高的日志条目的索引commitIndex 重置为 领导者的已知已经提交的最高的日志条目的索引leaderCommit 或者是 上一个新条目的索引 取两者的最小值
-   *
-   * todo 可以优化的地方：leader 发送时日志时不判断成功失败一直发送。但是客户端这边需要加公平锁 ，实现上一条日志处理完成才能处理下一条日志。保证处理日志顺序一致
+   * 目前的实现 当前方法不会被并发访问，因为发送方只有一个leader 接收者的实现：
+   * <p>
+   * 返回假 如果领导者的任期 小于 接收者的当前任期（译者注：这里的接收者是指跟随者或者候选者）（5.1 节） 返回假 如果接收者日志中没有包含这样一个条目 即该条目的任期在prevLogIndex上能和prevLogTerm匹配上
+   * （译者注：在接收者日志中 如果能找到一个和prevLogIndex以及prevLogTerm一样的索引和任期的日志条目 则继续执行下面的步骤 否则返回假）（5.3 节）
+   * 如果一个已经存在的条目和新条目（译者注：即刚刚接收到的日志条目）发生了冲突（因为索引相同，任期不同），那么就删除这个已经存在的条目以及它之后的所有条目 （5.3 节） 追加日志中尚未存在的任何新条目
+   * 如果领导者的已知已经提交的最高的日志条目的索引leaderCommit 大于 接收者的已知已经提交的最高的日志条目的索引commitIndex 则把 接收者的已知已经提交的最高的日志条目的索引commitIndex 重置为
+   * 领导者的已知已经提交的最高的日志条目的索引leaderCommit 或者是 上一个新条目的索引 取两者的最小值
+   * <p>
+   * todo 可以优化的地方：leader 发送日志时不判断成功失败一直发送。但是客户端这边需要加公平锁 ，实现上一条日志处理完成才能处理下一条日志。保证处理日志顺序一致
    */
   RaftRpcResponest addLogProcess(AddLogRequest request) {
 
@@ -162,7 +176,10 @@ public abstract class BaseRole implements Role {
       LOG.debug("接收心跳日志: 更新follow超时时间");
       raftStatus.setLastTime();
       raftStatus.setLeaderAddress(request.getLeaderId());
-      if (request.getLeaderCommit() > raftStatus.getCommitIndex()) {
+      //优化点：log静止时 follower 的commitIndex总是落后于leader。原因是commitIndex 是通过add log 同步的，每次发送log时只能知道上次的log是commit成功的。
+      //当心跳中的commitIndex 等于最后收到的日志条目并且term相等时（日志静止时的条件），更新本地commitIndex。
+      if (request.getLeaderCommit() == raftStatus.getLastTimeLogIndex()
+          && request.getTerm() == raftStatus.getLastTimeTerm()) {
         LOG.debug("接收心跳日志: 更新commitIndex");
         raftStatus.setCommitIndex(request.getLeaderCommit());
       }
@@ -175,7 +192,8 @@ public abstract class BaseRole implements Role {
         //判断接收到的日志的上一条日志是否匹配
         LogEntries existLog = saveLog.get(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getPrevLogIndex()));
         if (existLog.getTerm() != request.getPreLogTerm()) {
-          LOG.error("接收日志的上一条log 的term不匹配。 请求的term"+request.getPreLogTerm()+" 当前的term："+existLog.getTerm());
+          LOG.error("接收日志的上一条log 的term不匹配。 请求的term" + request.getPreLogTerm() + " 当前的term："
+              + existLog.getTerm());
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         } else {
           LOG.warn("日志冲突 " + request.toString());
@@ -191,7 +209,8 @@ public abstract class BaseRole implements Role {
         //判断接收到的log日志是否连续
         if (request.getPrevLogIndex() != raftStatus.getLastTimeLogIndex()
             || request.getPreLogTerm() != raftStatus.getLastTimeTerm()) {
-          LOG.error("接收日志不匹配" + request.toString() + " 预期的值: " + raftStatus.getLastTimeLogIndex() + " " + raftStatus
+          LOG.error("接收日志不匹配" + request.toString() + " 预期的值: " + raftStatus.getLastTimeLogIndex() + " "
+              + raftStatus
               .getLastTimeTerm());
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         }
@@ -200,6 +219,7 @@ public abstract class BaseRole implements Role {
       AtomicInteger atomicInteger = new AtomicInteger();
       TaskMaterial taskMaterial = new TaskMaterial(entries, cyclicBarrier, atomicInteger);
       saveLogQueue.add(taskMaterial);
+      //更新最后收到的log index 和term，这可以用来判断下次收到的日志是否连续。
       raftStatus.setLastTimeLogIndex(entries[entries.length - 1].getLogIndex());
       raftStatus.setLastTimeTerm(entries[entries.length - 1].getTerm());
       LOG.debug("添加log日志到队列中，更新preLogIndex 和 preTerm：" + entries[entries.length - 1].getLogIndex()

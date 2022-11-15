@@ -25,7 +25,7 @@ public class SaveLogTest {
   @Test
   public void init() throws RocksDBException {
     GlobalConfig config = new GlobalConfig();
-    config.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log2");
+    config.setLogPath("D:\\tmp\\raft\\log2");
     saveLog = new DefaultSaveLogImpl(config);
     saveLog.delete(RaftUtil.generateLogKey(1, 7));
   }
@@ -33,7 +33,7 @@ public class SaveLogTest {
   @Test
   public void setSaveLogScan() throws RocksDBException {
     GlobalConfig config = new GlobalConfig();
-    config.setLogPath("C:\\Users\\zhouz\\Desktop\\raft\\log");
+    config.setLogPath("D:\\tmp\\raft\\log");
     saveLog = new DefaultSaveLogImpl(config);
 
     SaveIterator scan = saveLog.scan(new byte[] {1}, new byte[] {100});
@@ -46,7 +46,7 @@ public class SaveLogTest {
 
   @Test
   public void findAll() throws RocksDBException {
-    String logPath = "C:\\Users\\zhouz\\Desktop\\raft\\log";
+    String logPath = "D:\\tmp\\raft\\log";
     System.out.println(logPath);
     traverseLogSave(logPath, false);
     for (int i = 2; i <= 5; i++) {
@@ -54,7 +54,7 @@ public class SaveLogTest {
       traverseLogSave(logPath + i, false);
     }
 
-    String dataPath = "C:\\Users\\zhouz\\Desktop\\raft\\data";
+    String dataPath = "D:\\tmp\\raft\\data";
     System.out.println(dataPath);
     traverseDataSave(dataPath, false);
     for (int i = 2; i <= 5; i++) {
@@ -63,9 +63,13 @@ public class SaveLogTest {
     }
   }
 
+  /**
+   * 清空所有服务产生的说有数据
+   * @throws RocksDBException
+   */
   @Test
   public void deleteAll() throws RocksDBException {
-    String logPath = "C:\\Users\\zhouz\\Desktop\\raft\\log";
+    String logPath = "D:\\tmp\\raft\\log";
     System.out.println(logPath);
     traverseLogSave(logPath, true);
     for (int i = 2; i <= 5; i++) {
@@ -73,7 +77,7 @@ public class SaveLogTest {
       traverseLogSave(logPath + i, true);
     }
 
-    String dataPath = "C:\\Users\\zhouz\\Desktop\\raft\\data";
+    String dataPath = "D:\\tmp\\raft\\data";
     System.out.println(dataPath);
     traverseDataSave(dataPath, true);
     for (int i = 2; i <= 5; i++) {

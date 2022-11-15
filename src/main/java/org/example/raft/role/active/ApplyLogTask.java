@@ -21,9 +21,8 @@ import org.slf4j.LoggerFactory;
 import com.alibaba.fastjson.JSON;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/11/30
- * 存储日志  并应用到 数据存储库
+ * @author zhouzhiyuan
+ * @date 2021/11/30 存储日志  并应用到 数据存储库
  */
 
 public class ApplyLogTask {
@@ -49,6 +48,7 @@ public class ApplyLogTask {
 
   /**
    * //todo 不是lead以后，还有必要继续写入队列里的数据吗？
+   *
    * @param dataQueue
    * @param saveData
    */
@@ -64,76 +64,75 @@ public class ApplyLogTask {
   }
 
   public void start() {
-    this.executorService = new ScheduledThreadPoolExecutor(1, e -> {
-      return new Thread(e, "SyscLogTask");
-    });
+    this.executorService = new ScheduledThreadPoolExecutor(1, e -> new Thread(e, "SyscLogTask"));
     this.executorService.scheduleAtFixedRate(this::run, 0, interval, TimeUnit.MILLISECONDS);
   }
 
 
-
   /**
    * 每50ms写入一次数据
-   *
    */
   public void run() {
-
-    int size = logQueue.size();
-    if (1 > size) {
-      // 无数据写入
-      LOG.debug("未监测到log需要应用: " + size);
-      return;
-    }
-    LogEntries[] peek = logQueue.peek();
-    long logIndex = peek[0].getLogIndex();
-    if (logIndex > raftStatus.getCommitIndex()) {
-      LOG.debug("跳过执行： longIndex :" + logIndex + " > commitIndex :" + raftStatus.getCommitIndex());
-      return;
-    }
-
     try {
-      //todo 第一次运行时会有应用日志不连续的问题，有时间可以优化到初始化中
-      if (raftStatus.getLastApplied() + 1 != logIndex) {
-        if (!applyLog(raftStatus.getLastApplied() + 1, logIndex)) {
-          LOG.error("应用log日志时出现逻辑错误");
+      int size = logQueue.size();
+      if (1 > size) {
+        // 无数据写入
+        return;
+      }
+      LogEntries[] peek = logQueue.peek();
+      long logIndex = peek[0].getLogIndex();
+      if (logIndex > raftStatus.getCommitIndex()) {
+        LOG.debug("跳过执行： longIndex :" + logIndex + " > commitIndex :" + raftStatus.getCommitIndex());
+        return;
+      }
+
+      try {
+        //todo 第一次运行时会有应用日志不连续的问题，有时间可以优化到初始化中
+        if (raftStatus.getLastApplied() + 1 != logIndex) {
+          if (!applyLog(raftStatus.getLastApplied() + 1, logIndex)) {
+            LOG.error("应用log日志时出现逻辑错误");
+            System.exit(100);
+          }
+        }
+        LOG.debug("检查到需要应用的任务数: " + size);
+        WriteBatch writeBatch = new WriteBatch();
+        logIndex = 0;
+        for (int i = 0; i < size; i++) {
+          LogEntries[] addLogs = logQueue.remove();
+          saveData.assembleData(writeBatch, addLogs, dataKeyPrefix);
+          //找到最后一批数据的最后一个logindex
+          if (i == size - 1) {
+            logIndex = addLogs[addLogs.length - 1].getLogIndex();
+          }
+        }
+
+        if (logIndex == 0) {
+          //todo  不应该出现的情况 ?
+          LOG.error("没有找到 logIndex ，不应该出现的问题");
           System.exit(100);
         }
-      }
-      LOG.debug("检查到需要应用的任务数: " + size);
-      WriteBatch writeBatch = new WriteBatch();
-      logIndex = 0;
-      for (int i = 0; i < size; i++) {
-        LogEntries[] addLogs = logQueue.remove();
-        saveData.assembleData(writeBatch, addLogs, dataKeyPrefix);
-        //找到最后一批数据的最后一个logindex
-        if (i == size - 1) {
-          logIndex = addLogs[addLogs.length - 1].getLogIndex();
-        }
-      }
 
-      if (logIndex == 0) {
-        //todo  不应该出现的情况 ?
-        LOG.error("没有找到 logIndex ，不应该出现的问题");
+        //提交 applied id  随批提交应用日志记录，保证原子性
+        writeBatch.put(appliedLogPrefixKey, ByteUtil.longToBytes(logIndex));
+        saveData.writBatch(writeBatch);
+        raftStatus.setLastApplied(logIndex);
+      } catch (RocksDBException e) {
+        LOG.error("写入data失败", e);
+        //todo  重试写入失败后退出程序 ?
+        System.exit(100);
+      } catch (Exception e) {
+        LOG.error("未知错误", e);
         System.exit(100);
       }
-
-      //提交 applied id  随批提交应用日志记录，保证原子性
-      writeBatch.put(appliedLogPrefixKey, ByteUtil.longToBytes(logIndex));
-      saveData.writBatch(writeBatch);
-      raftStatus.setLastApplied(logIndex);
-    } catch (RocksDBException e) {
-      LOG.error("写入data失败", e);
-      //todo  重试写入失败后退出程序 ?
-      System.exit(100);
+      LOG.debug("应用log日志完成");
     } catch (Exception e) {
-      LOG.error("未知错误", e);
-      System.exit(100);
+      LOG.error("应用log日志线程异常: " + e.getMessage(), e);
     }
-    LOG.debug("应用log日志完成");
   }
 
   /**
    * 恢复没有被应用的log
+   *
    * @return
    * @throws RocksDBException
    */
@@ -155,7 +154,7 @@ public class ApplyLogTask {
       raftStatus.setLastApplied(logIndex);
       LOG.info("应用日志完成：" + lastApplied + " -> " + logIndex);
       return true;
-    }else {
+    } else {
       return false;
     }
   }
