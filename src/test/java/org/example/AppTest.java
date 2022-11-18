@@ -139,6 +139,10 @@ public class AppTest {
     System.out.println(a - b < b);
   }
 
+  /**
+   * 选举原型代码 验证
+   * @throws InterruptedException
+   */
   @Test
   public void clientShutDown() throws InterruptedException {
 
@@ -214,6 +218,10 @@ public class AppTest {
     }
   }
 
+  /**
+   * 线程join方法验证
+   * @throws InterruptedException
+   */
   @Test
   public void threadJoinTest() throws InterruptedException {
     SendMessageJoinTest sendMessage = new SendMessageJoinTest(null);
@@ -317,7 +325,9 @@ public class AppTest {
     return r.nextInt(3000) % (3000 - 1500 + 1) + 1500;
   }
 
-
+  /**
+   * 字符串比较实验
+   */
   @Test
   public void testStringCompareTo() {
 

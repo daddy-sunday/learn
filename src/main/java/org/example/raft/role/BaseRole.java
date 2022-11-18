@@ -196,9 +196,9 @@ public abstract class BaseRole implements Role {
               + existLog.getTerm());
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         } else {
-          LOG.warn("日志冲突 " + request.toString());
+          LOG.warn("日志冲突 " + request);
           raftStatus.setServiceStatus(ServiceStatus.WAIT_RENEW);
-          //停止写log任务
+          //停止写log任务，这个操作没有应该也可以。理论上在一次term中日志一定是一直连续的，只有刚开始初始化时才会出现
           stopWriteLog();
           //清空失效的log
           saveLog.deleteRange(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getLogIndex()),
@@ -209,7 +209,7 @@ public abstract class BaseRole implements Role {
         //判断接收到的log日志是否连续
         if (request.getPrevLogIndex() != raftStatus.getLastTimeLogIndex()
             || request.getPreLogTerm() != raftStatus.getLastTimeTerm()) {
-          LOG.error("接收日志不匹配" + request.toString() + " 预期的值: " + raftStatus.getLastTimeLogIndex() + " "
+          LOG.error("接收日志不匹配" + request + " 预期的值: " + raftStatus.getLastTimeLogIndex() + " "
               + raftStatus
               .getLastTimeTerm());
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
@@ -272,6 +272,7 @@ public abstract class BaseRole implements Role {
       if (poll != null) {
         poll.failed();
       }
+      LOG.error("日志冲突发生时，syslog队列中存在数据，这不应该出现的");
     }
     //等待一次savelogtask完成,保证当前raft日志是静止的
     long execTaskCount = saveLogTask.getExecTaskCount();

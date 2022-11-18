@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * @author zhouzhiyuan
@@ -52,15 +53,16 @@ public class ChaseAfterLogTask {
   }
 
   public void start(long interval) {
-    executorService = new ScheduledThreadPoolExecutor(1, e -> new Thread(e, "ChaseAfterLogTask"));
+    executorService = new ScheduledThreadPoolExecutor(1,new ThreadFactoryBuilder()
+        .setDaemon(true).setNameFormat("ChaseAfterLogTask").build());
     executorService.scheduleAtFixedRate(this::run, 0, interval, TimeUnit.MILLISECONDS);
   }
 
 
   /**
    * 单线程追加进度落后的节点log，成功后将节点添加到可用列表
-   * todo 追赶前需要获取一下目标节点的 log 状态，预先判断一下发送的log是否符合连续自增的条件，如果不符合发送了也是失败
-   *  当发现日志差很多时，需要使用snapshot 发送快照的方式进行数据同步。
+   * todo 追赶前需要获取一下目标节点的 logIndex ，预先判断一下发送的log是否符合连续自增的条件，如果不符合发送了也是失败
+   *  当发现日志差很多时，需要使用snapshot 发送快照的方式进行数据同步。当支持了这种方式时就可以删除陈旧的log了，只保留一定量或者一段时间内的log。减少存储压力。
    */
   public void run() {
     try {

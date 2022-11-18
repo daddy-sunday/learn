@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * @author zhouzhiyuan
@@ -64,7 +65,8 @@ public class ApplyLogTask {
   }
 
   public void start() {
-    this.executorService = new ScheduledThreadPoolExecutor(1, e -> new Thread(e, "SyscLogTask"));
+    this.executorService = new ScheduledThreadPoolExecutor(1, new ThreadFactoryBuilder()
+        .setDaemon(true).setNameFormat("SyscLogTask").build());
     this.executorService.scheduleAtFixedRate(this::run, 0, interval, TimeUnit.MILLISECONDS);
   }
 

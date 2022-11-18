@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * @author zhouzhiyuan
@@ -97,16 +98,17 @@ public class LeaderRole extends BaseRole implements Role {
   void init() {
     executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum() * 2, raftStatus.getPersonelNum() * 3,
         3600L, TimeUnit.MILLISECONDS,
-        new ArrayBlockingQueue<Runnable>(100), Executors.defaultThreadFactory(), new RejectedExecutionHandler() {
-      @Override
-      public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        try {
-          executor.getQueue().put(r);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-      }
-    });
+        new ArrayBlockingQueue<Runnable>(100), new ThreadFactoryBuilder().setDaemon(true).setNameFormat("leader").build(),
+        new RejectedExecutionHandler() {
+          @Override
+          public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            try {
+              executor.getQueue().put(r);
+            } catch (InterruptedException e) {
+              e.printStackTrace();
+            }
+          }
+        });
     LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
     logIndex = maxLog.getLogIndex();
     synLogQueue = new LinkedBlockingDeque<>(1000);

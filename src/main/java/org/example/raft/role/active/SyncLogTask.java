@@ -24,10 +24,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
- *@author zhouzhiyuan
- *@date 2022/4/26
+ * @author zhouzhiyuan
+ * @date 2022/4/26
  */
 public class SyncLogTask {
 
@@ -58,9 +59,8 @@ public class SyncLogTask {
     this.sendHeartbeatTimeout = sendHeartbeatTimeout;
     executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum(), raftStatus.getPersonelNum(),
         3600L, TimeUnit.MILLISECONDS,
-        new ArrayBlockingQueue<Runnable>(100), e -> {
-      return new Thread(e, "sendLog");
-    }, (r, executor) -> {
+        new ArrayBlockingQueue<Runnable>(100),
+        new ThreadFactoryBuilder().setDaemon(true).setNameFormat("send-log").build(), (r, executor) -> {
       try {
         executor.getQueue().put(r);
       } catch (InterruptedException e) {
@@ -76,78 +76,77 @@ public class SyncLogTask {
 
 
   public void run() {
-    try{
-    int size = queue.size();
-    if (size < 1) {
-      return;
-    }
-    LOG.debug("需要同步的log数 " + size);
-    TaskMaterial[] taskMaterials = new TaskMaterial[size];
-    LogEntries[] logEntries = new LogEntries[size];
-    int count = 0;
     try {
-      //todo优化  计算发送消息大小。消息太大需要分批发送
-      for (int i = 0; i < size; i++) {
-        TaskMaterial material = queue.remove();
-        taskMaterials[i] = material;
-        logEntries[i] = material.getAddLog()[0];
+      int size = queue.size();
+      if (size < 1) {
+        return;
       }
-
-      long logIndex = logEntries[0].getLogIndex();
-      //leadeer初始时已经同步过log，所以 preLogTerm 是当前leader的任期
-      AddLogRequest addLog = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
-          logIndex - 1,
-          raftStatus.getCurrentTerm(), logEntries, raftStatus.getCommitIndex());
-
-      //发送log给follower
-      List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
-      for (String address : raftStatus.getValidMembers()) {
-        sendHeartbeats.add(
-            new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLog)), address,
-                sendHeartbeatTimeout));
-      }
-      List<Future<SynchronizeLogResult>> futures = executorService
-          .invokeAll(sendHeartbeats, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
-
-      // todo 优化，改为后台等待结果，不能影响发送
-      for (Future<SynchronizeLogResult> future : futures) {
-        if (future.get().isSuccess()) {
-          count++;
-        } else {
-          //移除同步失败的节点，并使用单独线程追赶落后的日志。
-          String address = future.get().getAddress();
-          raftStatus.getValidMembers().remove(address);
-          ChaseAfterLog chaseAfterLog = new ChaseAfterLog(address, raftStatus.getGroupId(), logIndex);
-          raftStatus.getFailedMembers().add(chaseAfterLog);
-          LOG.error("日志同步失败，地址添加到失败恢复队列："+chaseAfterLog);
+      LOG.debug("需要同步的log数 " + size);
+      TaskMaterial[] taskMaterials = new TaskMaterial[size];
+      LogEntries[] logEntries = new LogEntries[size];
+      int count = 0;
+      try {
+        //todo优化  计算发送消息大小。消息太大需要分批发送
+        for (int i = 0; i < size; i++) {
+          TaskMaterial material = queue.remove();
+          taskMaterials[i] = material;
+          logEntries[i] = material.getAddLog()[0];
         }
-      }
-    } catch (Exception e) {
-      LOG.error("发送同步日志异常："+e.getMessage(), e);
-      for (int i = 0; i < size; i++) {
-        if (taskMaterials[i]!= null) {
-          taskMaterials[i].failed();
+
+        long logIndex = logEntries[0].getLogIndex();
+        //leadeer初始时已经同步过log，所以 preLogTerm 是当前leader的任期
+        AddLogRequest addLog = new AddLogRequest(logIndex, raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(),
+            logIndex - 1,
+            raftStatus.getCurrentTerm(), logEntries, raftStatus.getCommitIndex());
+
+        //发送log给follower
+        List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
+        for (String address : raftStatus.getValidMembers()) {
+          sendHeartbeats.add(
+              new SendHeartbeat(roleStatus, new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(addLog)), address,
+                  sendHeartbeatTimeout));
         }
+        List<Future<SynchronizeLogResult>> futures = executorService
+            .invokeAll(sendHeartbeats, sendHeartbeatTimeout, TimeUnit.MILLISECONDS);
+
+        // todo 优化，改为后台等待结果，不能影响发送
+        for (Future<SynchronizeLogResult> future : futures) {
+          if (future.get().isSuccess()) {
+            count++;
+          } else {
+            //移除同步失败的节点，并使用单独线程追赶落后的日志。
+            String address = future.get().getAddress();
+            raftStatus.getValidMembers().remove(address);
+            ChaseAfterLog chaseAfterLog = new ChaseAfterLog(address, raftStatus.getGroupId(), logIndex);
+            raftStatus.getFailedMembers().add(chaseAfterLog);
+            LOG.error("日志同步失败，地址添加到失败恢复队列：" + chaseAfterLog);
+          }
+        }
+      } catch (Exception e) {
+        LOG.error("发送同步日志异常：" + e.getMessage(), e);
+        for (int i = 0; i < size; i++) {
+          if (taskMaterials[i] != null) {
+            taskMaterials[i].failed();
+          }
+        }
+        return;
       }
-      return;
-    }
 
-    //一批任务更新一次commitLogIndex
-    taskMaterials[size - 1].setCommitLogIndexFlag();
-    //记录提交的这批数据
-    taskMaterials[size - 1].setResult(logEntries);
-    for (int i = 0; i < size; i++) {
-      taskMaterials[i].success(count);
-    }
-    LOG.debug("同步log完成");
-
+      //一批任务更新一次commitLogIndex
+      taskMaterials[size - 1].setCommitLogIndexFlag();
+      //记录提交的这批数据
+      taskMaterials[size - 1].setResult(logEntries);
+      for (int i = 0; i < size; i++) {
+        taskMaterials[i].success(count);
+      }
+      LOG.debug("同步log完成");
     } catch (Exception e) {
       LOG.error("存储log日志线程异常: " + e.getMessage(), e);
     }
   }
 
 
-  public void writeResult(){
+  public void writeResult() {
 
   }
 
