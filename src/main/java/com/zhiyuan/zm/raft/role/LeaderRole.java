@@ -332,6 +332,7 @@ public class LeaderRole extends BaseRole implements Role {
     }
 
     try {
+      //因为是异步应用log，所以需要等待进入时刻的commitIndex = appliedId
       waitApplyIndexComplate(raftStatus.getCommitIndex());
       return getDataCommon(request);
     } catch (Exception e) {

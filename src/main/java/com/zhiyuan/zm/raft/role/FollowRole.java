@@ -74,6 +74,7 @@ public class FollowRole extends BaseRole implements Role {
           //超时 将当前角色转换为 candidate
           roleStatus.followerToCandidate();
           LOG.info("heartbeat timeout  follower role transition candidate role");
+          break;
         }
         if (keepRuning) {
           Thread.sleep(checkTimeoutInterval);

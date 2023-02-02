@@ -26,12 +26,13 @@ import com.zhiyuan.zm.raft.role.active.SaveLogTask;
 import com.zhiyuan.zm.raft.role.active.SendVote;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.RaftUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/10/27
+ * @author zhouzhiyuan
+ * @date 2021/10/27
  */
 public class CandidateRole extends BaseRole implements Role {
 
@@ -44,14 +45,8 @@ public class CandidateRole extends BaseRole implements Role {
   }
 
   /**
-   * 在转变成候选人后就立即开始选举过程
-   * 自增当前的任期号（currentTerm）
-   * 给自己投票
-   * 重置选举超时计时器
-   * 发送请求投票的 RPC 给其他所有服务器
-   * 如果接收到大多数服务器的选票，那么就变成领导人
-   * 如果接收到来自新的领导人的附加日志（AppendEntries）RPC，则转变成跟随者(该逻辑在addlog中实现)
-   * 如果选举过程超时，则再次发起一轮选举
+   * 在转变成候选人后就立即开始选举过程 自增当前的任期号（currentTerm） 给自己投票 重置选举超时计时器 发送请求投票的 RPC 给其他所有服务器 如果接收到大多数服务器的选票，那么就变成领导人
+   * 如果接收到来自新的领导人的附加日志（AppendEntries）RPC，则转变成跟随者(该逻辑在addlog中实现) 如果选举过程超时，则再次发起一轮选举
    */
   @Override
   public void work() {
@@ -108,7 +103,7 @@ public class CandidateRole extends BaseRole implements Role {
     VoteRequest request = new VoteRequest();
 
     request.setCandidateId(raftStatus.getLocalAddress());
-    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(),Long.MAX_VALUE));
+    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
     request.setLastLogIndex(maxLog.getLogIndex());
     request.setLastLogTerm(maxLog.getTerm());
 
@@ -121,6 +116,7 @@ public class CandidateRole extends BaseRole implements Role {
 
   /**
    * 随机151-300
+   *
    * @return
    */
   private int getVoteTimeOut() {
@@ -138,6 +134,10 @@ public class CandidateRole extends BaseRole implements Role {
         raftStatus.setServiceStatus(ServiceStatus.NON_SERVICE);
         raftStatus.setLeaderAddress(request.getLeaderId());
         //等follow初始化完成
+      }
+    }else {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug(" 为啥不切换跟随者"+raftStatus+" "+request);
       }
     }
     inServiceWait();

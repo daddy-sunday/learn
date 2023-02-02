@@ -92,7 +92,7 @@ public class ApplyLogTask {
         //todo 第一次运行时会有应用日志不连续的问题，有时间可以优化到初始化中
         if (raftStatus.getAppliedIndex() + 1 != logIndex) {
           if (!applyLog(raftStatus.getAppliedIndex() + 1, logIndex)) {
-            LOG.error("应用log日志时出现逻辑错误");
+            LOG.error("应用log日志时出现逻辑错误"+raftStatus);
             System.exit(100);
           }
         }

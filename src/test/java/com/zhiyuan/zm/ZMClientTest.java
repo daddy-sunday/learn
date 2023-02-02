@@ -16,7 +16,7 @@ public class ZMClientTest {
 
 
   /**
-   * 写入数据
+   * 单条数据写入
    * @throws RemotingException
    * @throws InterruptedException
    */
@@ -30,14 +30,20 @@ public class ZMClientTest {
     }
   }
 
+  /**
+   * 批量写入100条数据
+   * @throws RemotingException
+   * @throws InterruptedException
+   */
   @Test
   public void Clint2() throws RemotingException, InterruptedException {
     ZMClient client = new ZMClient("localhost:20001");
+    Row[] rows = new Row[100];
     for (int i = 100; i < 200; i++) {
-      Row row = new Row((i+"王五和小六子").getBytes(),(i+"是同学哈").getBytes());
-      DataResponest dataResponest = client.put( new Row[]{row});
-      System.out.println(dataResponest);
+      rows[i-100] = new Row((i+"王五和小六子").getBytes(),(i+"是同学哈").getBytes());
     }
+    DataResponest dataResponest = client.put(rows);
+    System.out.println(dataResponest);
   }
 
   @Test
@@ -96,7 +102,7 @@ public class ZMClientTest {
   }
 
   /**
-   * 删除数据
+   * 删除数据,存在就删除，不存在返回的也是成功
    * @throws RemotingException
    * @throws InterruptedException
    */
@@ -111,7 +117,7 @@ public class ZMClientTest {
   }
 
   /**
-   * 删除数据
+   * leader 漂移
    * @throws RemotingException
    * @throws InterruptedException
    */

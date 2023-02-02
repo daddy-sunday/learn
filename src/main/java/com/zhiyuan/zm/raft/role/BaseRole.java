@@ -222,7 +222,7 @@ public abstract class BaseRole implements Role {
               + existLog.getTerm());
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         } else {
-          LOG.warn("日志冲突 " + request);
+          LOG.warn("日志冲突 " + request+" "+raftStatus);
           raftStatus.setServiceStatus(ServiceStatus.WAIT_RENEW);
           //停止写log任务，这个操作没有应该也可以。理论上在一次term中日志一定是一直连续的，只有刚开始初始化时才会出现
           stopWriteLog();
@@ -248,8 +248,10 @@ public abstract class BaseRole implements Role {
       //更新最后收到的log index 和term，这可以用来判断下次收到的日志是否连续。
       raftStatus.setLastTimeLogIndex(entries[entries.length - 1].getLogIndex());
       raftStatus.setLastTimeTerm(entries[entries.length - 1].getTerm());
-      LOG.debug("添加log日志到队列中，更新preLogIndex 和 preTerm：" + entries[entries.length - 1].getLogIndex()
-          + " , " + entries[entries.length - 1].getTerm());
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("添加log日志到队列中，更新preLogIndex 和 preTerm：" + entries[entries.length - 1].getLogIndex()
+            + " , " + entries[entries.length - 1].getTerm());
+      }
       cyclicBarrier.await(10000, TimeUnit.MILLISECONDS);
 
       if (atomicInteger.get() == 1) {
