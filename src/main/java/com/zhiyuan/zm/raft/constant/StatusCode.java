@@ -37,10 +37,12 @@ public class StatusCode {
 
 
 
+  public static final int NOT_LEADER = 606;
+
   /**
    * leader 漂移
    */
-  public static final int LEADER_MOVE = 602;
+  public static final int LEADER_MOVE = 605;
 
   /**
    * 等待超时
@@ -51,11 +53,11 @@ public class StatusCode {
    * 接收端异常
    */
   public static final byte SERVICE_EXCEPTION= 62;
-
   /**
    * 网络原因异常
    */
   public static final byte EXCEPTION = 63;
+
   /**
    * term小于接收者term
    */
@@ -65,5 +67,4 @@ public class StatusCode {
    *不匹配logindex
    */
   public static final byte NOT_MATCH_LOG_INDEX = 65;
-
 }

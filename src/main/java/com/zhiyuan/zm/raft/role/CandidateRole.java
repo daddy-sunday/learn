@@ -129,7 +129,7 @@ public class CandidateRole extends BaseRole implements Role {
   public RaftRpcResponest addLogRequest(AddLogRequest request) {
     if (request.getTerm() >= raftStatus.getCurrentTerm()) {
       raftStatus.setCurrentTerm(request.getTerm());
-      LOG.info("接收到领导人发送的消息，并且term大于等于自己的term，转变选举状态为 跟随者");
+      LOG.info("接收到领导人发送的消息，并且term大于等于自己的term，转变选举状态为 跟随者 currentTerm="+request.getTerm());
       if (roleStatus.candidateToFollower()) {
         raftStatus.setServiceStatus(ServiceStatus.NON_SERVICE);
         raftStatus.setLeaderAddress(request.getLeaderId());

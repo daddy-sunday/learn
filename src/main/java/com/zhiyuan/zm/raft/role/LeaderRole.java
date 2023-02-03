@@ -126,6 +126,7 @@ public class LeaderRole extends BaseRole implements Role {
     syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus, synLogTaskInterval, sendHeartbeatTimeout);
     chaseAfterLogTask = new ChaseAfterLogTask(raftStatus, roleStatus, saveLog, sendHeartbeatTimeout);
     emptyHeartbeat = getEmptyHeartbeats();
+    //leader第一次启动时需要同步一次日志，保证所有节点的日志和自己是一样的
     executorService.submit(new SentFirstLog(maxLog.getTerm()));
     keepRuning = true;
     if (userWorkthread != null) {
@@ -184,12 +185,12 @@ public class LeaderRole extends BaseRole implements Role {
           LOG.debug("初始化同步日志失败的任务" + raftStatus.getFailedMembers());
           //清空失败的地址
           raftStatus.getFailedMembers().clear();
-        }else {
-          applyLogQueue.add(new LogEntries[]{logEntrie});
+        } else {
+          applyLogQueue.add(new LogEntries[] {logEntrie});
         }
         LOG.info("初始化同步日志完成");
         raftStatus.setCommitIndex(logIndex);
-        commitIndex();
+        synCommitIndex();
         raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
         chaseAfterLogTask.start(chaseAfterLogTaskInterval);
       } catch (InterruptedException | ExecutionException | RocksDBException e) {
@@ -290,8 +291,8 @@ public class LeaderRole extends BaseRole implements Role {
     while (!failedMembers.isEmpty()) {
       failedMembers.poll();
     }
-
-    stopWriteLog();
+    waitQueueIsEmpty();
+    clearAppliedQueue();
   }
 
 
@@ -368,6 +369,8 @@ public class LeaderRole extends BaseRole implements Role {
       taskMaterial = new TaskMaterial(logEntries, countDownLatch, ticketNum);
       saveLogQueue.add(taskMaterial);
       synLogQueue.add(taskMaterial);
+      //应用log中会判断commitIndex来决定要不要应用这个日志
+      applyLogQueue.add(logEntries);
     }
     try {
       //等待异步任务完成
@@ -376,13 +379,12 @@ public class LeaderRole extends BaseRole implements Role {
         //一批数据提交一次commit
         if (taskMaterial.isCommitLogIndexFlag()) {
           raftStatus.setCommitIndex(logIndex);
-          //将成功提交的日志添加到应用日志队列中
-          applyLogQueue.add(taskMaterial.getResult());
           if (logIndex == raftStatus.getCommitIndex()) {
-            commitIndex();
+            //如果不做commitIndex同步，则follower节点需要等到下一个心跳才能更新commitIndex
+            synCommitIndex();
           }
         }
-        return new DataResponest("成功了，哈哈");
+        return new DataResponest("成功");
       }
     } catch (InterruptedException e) {
       LOG.warn("leader -> 存储log时超时被中断" + e.getMessage());
@@ -449,14 +451,18 @@ public class LeaderRole extends BaseRole implements Role {
             //这个中断可能会导致当前leader 发送心跳失败，但我认为这并不是问题。因为此时leader已经下岗了
             thread.interrupt();
             //通知 继位leader 上位
-            LOG.info("通知新leader上位");
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("通知新leader上位 " + logIndex + " == " + raftStatus.getAppliedIndex() + " == "
+                  + dataChangeDto.getAppliedIndex());
+            }
             return InternalRpcClient.followerToLeader(leaderMoveDto.getNewLeaderAddress(),
                 sendHeartbeatTimeout, leaderMoveDto);
           } else {
             return new DataResponest(StatusCode.ERROR_REQUEST, "执行角色切换命令时时发生了角色切换");
           }
         } else {
-          LOG.info("继位leader状态不满足要求："+logIndex+"-"+raftStatus.getAppliedIndex()+"-"+dataChangeDto.getAppliedIndex());
+          LOG.info("继位leader状态不满足要求：" + logIndex + "-" + raftStatus.getAppliedIndex() + "-"
+              + dataChangeDto.getAppliedIndex());
           Thread.sleep(100);
           if (roleStatus.getNodeStatus() != RoleStatus.LEADER) {
             return new DataResponest(StatusCode.LEADER_MOVE, "leader 节点失去领导地位，不能完成后续操作");
@@ -515,7 +521,7 @@ public class LeaderRole extends BaseRole implements Role {
     return false;
   }
 
-  private void commitIndex() throws InterruptedException {
+  private void synCommitIndex() throws InterruptedException {
     List<SendHeartbeat> sendHeartbeats = new LinkedList<>();
     RaftRpcRequest request = new RaftRpcRequest(MessageType.LOG, JSON.toJSONString(new AddLogRequest(
         raftStatus.getCurrentTerm(), raftStatus.getLocalAddress(), raftStatus.getCommitIndex())));

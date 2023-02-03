@@ -226,14 +226,17 @@ public class RaftStatus {
     return commitIndex;
   }
 
-  public void setCommitIndex(long commitIndex) {
-    this.commitIndex = commitIndex;
+  public synchronized void setCommitIndex(long commitIndex) {
+    if (commitIndex > this.commitIndex){
+      this.commitIndex = commitIndex;
+    }
   }
 
   public long getAppliedIndex() {
     return appliedInedex;
   }
 
+  //单线程修改
   public void setAppliedIndex(long lastApplied) {
     this.appliedInedex = lastApplied;
   }

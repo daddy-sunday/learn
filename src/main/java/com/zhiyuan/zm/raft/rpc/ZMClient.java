@@ -20,9 +20,9 @@ import com.zhiyuan.zm.raft.dto.Row;
  */
 public class ZMClient {
 
-  private  final RpcClient client ;
+  private final RpcClient client;
 
-  private  int timeOut = 10000;
+  private int timeOut = 10000;
 
   /**
    * 这个值在运行过程中会随着leader节点的变更而变更
@@ -42,30 +42,29 @@ public class ZMClient {
     this.url = url;
   }
 
-  public  void close(String url) {
+  public void close(String url) {
     client.closeConnection(url);
   }
 
-  public  DataResponest leaderMove(String newLeader) throws RemotingException, InterruptedException {
-    RaftInfoDto raftInfo = getRaftInfo(url, timeOut);
-    LeaderMoveDto leaderMoveDto = new LeaderMoveDto(newLeader,raftInfo.getLeaderAddress());
+  public DataResponest leaderMove(String newLeader) throws RemotingException, InterruptedException {
+    DataResponest dataResponest = getRaftInfo(url, timeOut);
+    if (dataResponest.getStatus() != StatusCode.SUCCESS) {
+      return dataResponest;
+    }
+    RaftInfoDto raftInfo = JSON.parseObject(dataResponest.getMessage(), RaftInfoDto.class);
+    LeaderMoveDto leaderMoveDto = new LeaderMoveDto(newLeader, raftInfo.getLeaderAddress());
     DataRequest request = new DataRequest(MessageType.LEADER_MOVE,
         JSON.toJSONString(leaderMoveDto));
     return dataRequest(raftInfo.getLeaderAddress(), request, timeOut);
   }
 
-  private  RaftInfoDto getRaftInfo(String url,int timeOut) throws RemotingException, InterruptedException {
-    DataRequest request = new DataRequest(MessageType.RAFT_INFO,null);
-    DataResponest dataResponest = dataRequest(url, request, timeOut);
-
-    if (dataResponest.getStatus() == StatusCode.SUCCESS) {
-      return JSON.parseObject(dataResponest.getMessage(), RaftInfoDto.class);
-    }
-    throw new RemotingException(dataResponest.getMessage());
+  private DataResponest getRaftInfo(String url, int timeOut) throws RemotingException, InterruptedException {
+    DataRequest request = new DataRequest(MessageType.RAFT_INFO, null);
+    return dataRequest(url, request, timeOut);
   }
 
 
-  public  DataResponest put(Row[] data) throws RemotingException, InterruptedException {
+  public DataResponest put(Row[] data) throws RemotingException, InterruptedException {
     DataRequest request = new DataRequest(MessageType.SET,
         JSON.toJSONString(new Command(DataOperationType.INSERT, data)));
     DataResponest dataResponest = dataRequest(url, request, timeOut);
@@ -76,7 +75,7 @@ public class ZMClient {
     return dataResponest;
   }
 
-  public  DataResponest delete( Row[] data)
+  public DataResponest delete(Row[] data)
       throws RemotingException, InterruptedException {
     DataRequest request = new DataRequest(MessageType.SET,
         JSON.toJSONString(new Command(DataOperationType.DELETE, data)));
@@ -88,14 +87,14 @@ public class ZMClient {
     return dataResponest;
   }
 
-  public  DataResponest get( String key) throws RemotingException, InterruptedException {
+  public DataResponest get(String key) throws RemotingException, InterruptedException {
     DataRequest request = new DataRequest(MessageType.GET,
         JSON.toJSONString(new GetData(key)));
     return dataRequest(url, request, timeOut);
   }
 
 
-  private  DataResponest dataRequest(String url, DataRequest request, int timeOut)
+  private DataResponest dataRequest(String url, DataRequest request, int timeOut)
       throws RemotingException, InterruptedException {
     return (DataResponest) client.invokeSync(url, request, timeOut);
   }

@@ -11,7 +11,7 @@ import org.rocksdb.RocksDBException;
  */
 public class RaftServiceTest {
   /**
-   * Rigorous Test :-)
+   * 启动一个存储节点
    */
   @Test
   public void server1() throws InterruptedException, RocksDBException {

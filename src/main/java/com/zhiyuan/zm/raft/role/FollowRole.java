@@ -86,6 +86,7 @@ public class FollowRole extends BaseRole implements Role {
       }
     } while (roleStatus.getNodeStatus() == RoleStatus.FOLLOWER);
     raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
+    clearAppliedQueue();
   }
 
   @Override
@@ -176,6 +177,7 @@ public class FollowRole extends BaseRole implements Role {
       if (roleStatus.followerToLeader()) {
         keepRuning = false;
         thread.interrupt();
+        raftStatus.setCurrentTerm(raftStatus.getCurrentTerm()+1);
         return new DataResponest(StatusCode.SUCCESS);
       } else {
         return new DataResponest(StatusCode.ERROR_REQUEST, "执行角色切换命令时时发生了角色切换");

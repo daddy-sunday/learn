@@ -2,10 +2,10 @@
 raft 写
 leader 写流程
 	1。请求数据被leader 收到
-	2.消息写入 存储log队列，和发送消息队列
+	2.消息写入 存储log队列，发送消息队列，应用log队列（不提交的log不会被应用）
 	3.等待保存log结果
-	4.成功 将消息写入 应用队列，并响应客户端消息
-	5.失败 响应客户端消息
+	4.响应客户端消息
+
 follower 收到leader流程：
 	1.raft消息验证
 	2.验证通过 保存消息到 存储log队列
@@ -14,6 +14,20 @@ follower 收到leader流程：
 三个异步线程：
 	存储log线程，发送消息线程，应用log线程。
 异步线程优点：都是批量操作，可以提升写入速度。
+
+
+raft leader漂移
+	leader 停止对外提供的写服务，可以正常读取数据。
+	leader 检查 longIndex  等于 appliedIndex 等于 继位leader appliedIndex
+	leader 退位，并通知继位leader 上位
+
+未实现的功能：
+使用rocksDB的snapshaot能力，实现添加节点或故障转移时快速恢复log entires的功能，还可以实现定期清理日志条目（只保留最近的或者小于多少的long entries），减少存储空间的占用。
+  实现逻辑：
+    leader 通过rockDB 提供的快照功能，获取rockDB快照。
+    leader 通过快照读获取当前所有应用数据和appliedIndexId，并通过rockDB提供的writeSstFile能力将数据保存为sst文件。
+    将sst文件发送到需要恢复数据的节点，完成后，在同步当前快照对应的log数据。
+    这里不对sst文件进行存储。没有必要。只是借助快照的能力
 
 raft 配置变更
 	定义配置变更类型，
@@ -28,16 +42,3 @@ raft 配置变更
 	  减少成员
 	  添加成员
 	  支持选择添加成员类型。（学习者或者是跟随者，并支持这两种类型之间相互切换）
-
-raft leader漂移
-	leader 停止对外提供的写服务，可以正常读取数据。
-	leader 检查 applied  等于 lastWriteId 等于 继位leader applied
-	leader 退位，并通知继位leader 上位
-
-
-使用rocksDB的snapshaot能力，实现添加节点或故障转移时快速恢复log entires的功能，还可以实现定期清理日志条目（只保留最近的或者小于多少的long entries），减少存储空间的占用。
-  实现逻辑：
-    leader 通过rockDB 提供的快照功能，获取rockDB快照。
-    leader 通过快照读获取当前所有应用数据和appliedIndexId，并通过rockDB提供的writeSstFile能力将数据保存为sst文件。
-    将sst文件发送到需要恢复数据的节点，完成后，在同步当前快照对应的log数据。
-    这里不对sst文件进行存储。没有必要。只是借助快照的能力

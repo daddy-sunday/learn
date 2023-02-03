@@ -1,10 +1,12 @@
 package com.zhiyuan.zm.raft.role;
 
+import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.zhiyuan.zm.conf.GlobalConfig;
 import com.zhiyuan.zm.raft.constant.ServiceStatus;
@@ -24,6 +26,7 @@ import com.zhiyuan.zm.raft.role.active.SaveLogTask;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.ByteUtil;
 import com.zhiyuan.zm.raft.util.RaftUtil;
+
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +64,7 @@ public abstract class BaseRole implements Role {
   private int waitCount = 100;
 
   Thread thread;
+  ReentrantLock lock = new ReentrantLock(true);
 
 
   public BaseRole(SaveData saveData, SaveLog saveLog, RaftStatus raftStatus, RoleStatus roleStatus,
@@ -83,16 +87,17 @@ public abstract class BaseRole implements Role {
 
   public boolean inService() {
     if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
-        LOG.debug(
-            "当前角色不在服务状态，等上一会儿。状态：" + raftStatus.getServiceStatus() + "角色："
-                + roleStatus.getNodeStatus());
-        return false;
+      LOG.debug(
+          "当前角色不在服务状态，等上一会儿。状态：" + raftStatus.getServiceStatus() + "角色："
+              + roleStatus.getNodeStatus());
+      return false;
     }
     return true;
   }
 
   public boolean canRead() {
-    if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE||raftStatus.getServiceStatus() != ServiceStatus.READ_ONLY ) {
+    if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE
+        && raftStatus.getServiceStatus() != ServiceStatus.READ_ONLY) {
       LOG.debug(
           "当前角色不在服务状态，等上一会儿。状态：" + raftStatus.getServiceStatus() + "角色："
               + roleStatus.getNodeStatus());
@@ -201,16 +206,21 @@ public abstract class BaseRole implements Role {
     if (entries == null) {
       LOG.debug("接收心跳日志: 更新follow超时时间");
       raftStatus.setLastTime();
-      raftStatus.setLeaderAddress(request.getLeaderId());
+      if (raftStatus.getCurrentTerm() != request.getTerm()) {
+        LOG.debug("接收心跳日志: 更新currentTerm=" + request.getTerm() + " leaderAddress=" + request.getLeaderId());
+        raftStatus.setCurrentTerm(request.getTerm());
+        raftStatus.setLeaderAddress(request.getLeaderId());
+      }
       //优化点：log静止时 follower 的commitIndex总是落后于leader。原因是commitIndex 是通过add log 同步的，每次发送log时只能知道上次的log是commit成功的。
       //当心跳中的commitIndex 等于最后收到的日志条目并且term相等时（日志静止时的条件），更新本地commitIndex。
       if (request.getLeaderCommit() == raftStatus.getLastTimeLogIndex()
           && request.getTerm() == raftStatus.getLastTimeTerm()) {
-        LOG.debug("接收心跳日志: 更新commitIndex");
+        LOG.debug("接收心跳日志: 更新commitIndex=" + request.getLeaderCommit());
         raftStatus.setCommitIndex(request.getLeaderCommit());
       }
       return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
     }
+    lock.lock();
     try {
       //优化后的实现逻辑逻辑（只有异常情况（日志不连续时）才需要查询存储系统） 。
       //接收到的日志 小于 等于已经存在的最大日志，则认为日志不连续了
@@ -222,10 +232,10 @@ public abstract class BaseRole implements Role {
               + existLog.getTerm());
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         } else {
-          LOG.warn("日志冲突 " + request+" "+raftStatus);
+          LOG.warn("日志冲突 " + request + " " + raftStatus);
           raftStatus.setServiceStatus(ServiceStatus.WAIT_RENEW);
           //停止写log任务，这个操作没有应该也可以。理论上在一次term中日志一定是一直连续的，只有刚开始初始化时才会出现
-          stopWriteLog();
+          waitQueueIsEmpty();
           //清空失效的log
           saveLog.deleteRange(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getLogIndex()),
               RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
@@ -241,6 +251,7 @@ public abstract class BaseRole implements Role {
           return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.NOT_MATCH_LOG_INDEX);
         }
       }
+
       CountDownLatch cyclicBarrier = new CountDownLatch(1);
       AtomicInteger atomicInteger = new AtomicInteger();
       TaskMaterial taskMaterial = new TaskMaterial(entries, cyclicBarrier, atomicInteger);
@@ -253,7 +264,6 @@ public abstract class BaseRole implements Role {
             + " , " + entries[entries.length - 1].getTerm());
       }
       cyclicBarrier.await(10000, TimeUnit.MILLISECONDS);
-
       if (atomicInteger.get() == 1) {
         if (taskMaterial.isCommitLogIndexFlag()) {
           long leaderCommit = request.getLeaderCommit();
@@ -274,6 +284,8 @@ public abstract class BaseRole implements Role {
       System.exit(100);
     } catch (InterruptedException e) {
       LOG.error("follow存储log时超时被中断 " + e.getMessage(), e);
+    }finally {
+      lock.unlock();
     }
     LOG.debug("接收日志异常 ：" + request.getLogIndex());
     return new RaftRpcResponest(raftStatus.getCurrentTerm(), false, StatusCode.SERVICE_EXCEPTION);
@@ -293,14 +305,30 @@ public abstract class BaseRole implements Role {
 
   public abstract DataResponest doDataExchange();
 
-  void stopWriteLog() {
-    //清空没有消费的savelog
-    while (!saveLogQueue.isEmpty()) {
-      TaskMaterial poll = saveLogQueue.poll();
-      if (poll != null) {
-        poll.failed();
+  /**
+   * 当发出的请求没有被大多数节点承认时，或者说只有少部分节点收到了消息，则这些消息在队列中就是垃圾消息需要清理掉
+   * 清理的时机就是节点角色切换时
+   */
+  protected void clearAppliedQueue(){
+    while (!applyLogQueue.isEmpty()){
+      LogEntries[] peek = applyLogQueue.peek();
+      long logIndex = peek[0].getLogIndex();
+      if (logIndex > raftStatus.getCommitIndex()) {
+        LogEntries[] addLogs = applyLogQueue.remove();
+        LOG.info("清理应用队列 ："+ Arrays.toString(addLogs));
+      }else {
+        break;
       }
-      LOG.error("日志冲突发生时，syslog队列中存在数据，这不应该出现的");
+    }
+  }
+
+  protected void waitQueueIsEmpty() {
+    while (!saveLogQueue.isEmpty()) {
+      try {
+        Thread.sleep(10);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
     }
     //等待一次savelogtask完成,保证当前raft日志是静止的
     long execTaskCount = saveLogTask.getExecTaskCount();
@@ -315,21 +343,21 @@ public abstract class BaseRole implements Role {
 
   @Override
   public DataResponest snapshaotCopy(String request) {
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER,"当前节点状态不支持该操作");
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 
   @Override
   public DataResponest configurationChange(ConfigurationChangeDto configurationChangeDto) {
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER,"当前节点状态不支持该操作");
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 
   @Override
   public DataResponest leaderMove(LeaderMoveDto leaderMoveDto) {
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER,"当前节点状态不支持该操作");
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 
   @Override
   public DataResponest getRaftInfo() {
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER,"当前节点状态不支持该操作");
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 }
