@@ -17,7 +17,7 @@ raft协议地址：
  执行 test/java目录下的 SaveLogTest.findAll() 类中的方法，可以查询所有节点中rocksdb中的存储数据。
  执行 test/java目录下的 SaveLogTest.deleteAll() 类中的方法，可以清空所有节点中rocksdb的存储数据。
 
-当前的代码经过了简单的小数据量测试，可能还存在一些未知的bug。
+
 
 
 
