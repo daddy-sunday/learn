@@ -13,15 +13,22 @@ public class RaftUtil {
   public static final long  INIT_LOG_INDEX = 5;
   public static final long  INIT_TERM = 5;
 
+  private static final byte RAFT_INIT_FLAG_KEY = 3;
+
+  /**
+   *
+   * 数据类型划分
+   *
+   */
   private static final byte COMMIT_LOG_KEY_PREFIX = 1;
 
   private static final byte APPLY_LOG_KEY_PREFIX = 2;
 
   private static final byte LOG_KEY_PREFIX = 10;
 
-  private static final byte RAFT_INIT_FLAG_KEY = 3;
-
   private static final byte DATA_KEY_PREFIX = 20;
+
+  private static final byte TRANSACTION_KEY_PREFIX = 30;
 
 
   /**

@@ -346,6 +346,37 @@ public abstract class BaseRole implements Role {
     return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 
+  /**
+   *开启事务
+   * @param request
+   * @return
+   */
+  @Override
+  public DataResponest opentransaction(String request){
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+
+  /**
+   *提交事务
+   * @param request
+   * @return
+   */
+  @Override
+ public DataResponest commitTransaction(String request){
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+  /**
+   *回滚事务
+   * @param request
+   * @return
+   */
+  @Override
+ public DataResponest rollbackTransaction(String request){
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
   @Override
   public DataResponest configurationChange(ConfigurationChangeDto configurationChangeDto) {
     return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");

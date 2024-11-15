@@ -132,7 +132,7 @@ public class FollowRole extends BaseRole implements Role {
 
     if (!inService()) {
       return new DataResponest(StatusCode.NON_SEVICE,
-          "服务正在初始化，请换一个节点或者等以后儿重试，状态：" + raftStatus.getServiceStatus());
+          "服务正在初始化，请换一个节点或者等会儿重试，状态：" + raftStatus.getServiceStatus());
     }
     try {
       if (StringUtils.isEmpty(raftStatus.getLeaderAddress())) {

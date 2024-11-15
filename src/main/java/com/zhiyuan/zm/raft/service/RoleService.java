@@ -102,6 +102,12 @@ public class RoleService {
           return currentRole.leaderMove(JSON.parseObject(request.getMessage(), LeaderMoveDto.class));
         case MessageType.RAFT_INFO:
           return currentRole.getRaftInfo();
+        case MessageType.OPEN_TRANSACTION:
+          return currentRole.opentransaction(request.getMessage());
+        case MessageType.COMMIT_TRANSACTION:
+          return currentRole.commitTransaction(request.getMessage());
+        case MessageType.ROLLBACK_TRANSACTION:
+          return currentRole.rollbackTransaction(request.getMessage());
         default:
       }
     }

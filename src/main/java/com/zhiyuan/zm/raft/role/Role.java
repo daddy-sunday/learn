@@ -50,6 +50,29 @@ public interface Role {
 
 
   /**
+   *开启事务
+   * @param request
+   * @return
+   */
+  DataResponest opentransaction(String request);
+
+
+  /**
+   *提交事务
+   * @param request
+   * @return
+   */
+  DataResponest commitTransaction(String request);
+
+  /**
+   *回滚事务
+   * @param request
+   * @return
+   */
+  DataResponest rollbackTransaction(String request);
+
+
+  /**
    * 角色之间的状态交换，比如follower想知道当前leader的 log entires index 以支持读取数据。
    * @param request 1
    * @return 1

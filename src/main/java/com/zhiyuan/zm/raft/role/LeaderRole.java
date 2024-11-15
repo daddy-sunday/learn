@@ -342,6 +342,41 @@ public class LeaderRole extends BaseRole implements Role {
     return new DataResponest(StatusCode.SYSTEMEXCEPTION, "系统异常：请查看系统日志");
   }
 
+  /**
+   *		生成事务专属的key消息 。
+   * 		  内容： 特殊的key，客户端id， 事务id，开启事务标识，
+   * 		同步消息成功后再内存中维护一个事物管理数据结构 事务id，客户端id ，状态
+   * 		最后返回事务id。
+   * @param request
+   * @return
+   */
+  @Override
+  public DataResponest opentransaction(String request){
+
+
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+
+  /**
+   *提交事务
+   * @param request
+   * @return
+   */
+  @Override
+  public DataResponest commitTransaction(String request){
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+  /**
+   *回滚事务
+   * @param request
+   * @return
+   */
+  @Override
+  public DataResponest rollbackTransaction(String request){
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
 
   /**
    * @param request
@@ -356,12 +391,8 @@ public class LeaderRole extends BaseRole implements Role {
     CountDownLatch countDownLatch = new CountDownLatch(2);
     AtomicInteger ticketNum = new AtomicInteger();
     TaskMaterial taskMaterial;
-    //此处加同步块的原因是 ，保证存储到队列的中的日志的logIndex是连续递增的
+    //此处加同步块的原因是 ，保证存储到队列中的日志的logIndex是连续递增的
     synchronized (this) {
-      if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
-        return new DataResponest(StatusCode.SLEEP,
-            "服务正在初始化，请在等待一会重试，状态：" + raftStatus.getServiceStatus());
-      }
       logIndex += 1;
       LogEntries[] logEntries = new LogEntries[] {new LogEntries(logIndex, raftStatus.getCurrentTerm(), request)};
 

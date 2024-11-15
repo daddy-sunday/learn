@@ -10,4 +10,6 @@ public class DataOperationType {
   public static final byte INSERT = 3;
   public static final byte EMPTY = 4;
 
+  public static final byte TRANSACTION = 5;
+  public static final byte CONFIG_CHANGE = 6;
 }
