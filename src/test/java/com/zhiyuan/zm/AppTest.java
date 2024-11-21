@@ -164,11 +164,6 @@ public class AppTest {
   }
 
 
-  @Test
-  public void testThreadPollExecutor() {
-    int a = 3, b = 2;
-    System.out.println(a - b < b);
-  }
 
   /**
    * 选举原型代码 验证
@@ -384,13 +379,11 @@ public class AppTest {
     int len1 = param1.length;
     int len2 = param2.length;
     int lim = Math.min(len1, len2);
-    byte v1[] = param1;
-    byte v2[] = param2;
 
     int k = 0;
     while (k < lim) {
-      byte c1 = v1[k];
-      byte c2 = v2[k];
+      byte c1 = param1[k];
+      byte c2 = param2[k];
       if (c1 != c2) {
         return c1 - c2;
       }

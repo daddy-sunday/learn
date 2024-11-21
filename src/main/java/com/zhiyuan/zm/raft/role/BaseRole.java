@@ -25,7 +25,7 @@ import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.role.active.SaveLogTask;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.ByteUtil;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
@@ -77,7 +77,7 @@ public abstract class BaseRole implements Role {
     this.applyLogQueue = applyLogQueue;
     this.saveLogQueue = saveLogQueue;
     this.saveLogTask = saveLogTask;
-    this.datakeyprefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
+    this.datakeyprefix = KeyUtil.generateDataKey(raftStatus.getGroupId());
     this.checkTimeoutInterval = conf.getCheckTimeoutInterval();
     this.sendHeartbeatTimeout = conf.getSendHeartbeatTimeout();
     waitTimeInterval = conf.getWaitTimeInterval();
@@ -226,7 +226,7 @@ public abstract class BaseRole implements Role {
       //接收到的日志 小于 等于已经存在的最大日志，则认为日志不连续了
       if (request.getLogIndex() <= raftStatus.getLastTimeLogIndex()) {
         //判断接收到的日志的上一条日志是否匹配
-        LogEntries existLog = saveLog.get(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getPrevLogIndex()));
+        LogEntries existLog = saveLog.get(KeyUtil.generateLogKey(raftStatus.getGroupId(), request.getPrevLogIndex()));
         if (existLog.getTerm() != request.getPreLogTerm()) {
           LOG.error("接收日志的上一条log 的term不匹配。 请求的term" + request.getPreLogTerm() + " 当前的term："
               + existLog.getTerm());
@@ -237,8 +237,8 @@ public abstract class BaseRole implements Role {
           //停止写log任务，这个操作没有应该也可以。理论上在一次term中日志一定是一直连续的，只有刚开始初始化时才会出现
           waitQueueIsEmpty();
           //清空失效的log
-          saveLog.deleteRange(RaftUtil.generateLogKey(raftStatus.getGroupId(), request.getLogIndex()),
-              RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
+          saveLog.deleteRange(KeyUtil.generateLogKey(raftStatus.getGroupId(), request.getLogIndex()),
+              KeyUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
           raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
         }
       } else {
@@ -390,5 +390,9 @@ public abstract class BaseRole implements Role {
   @Override
   public DataResponest getRaftInfo() {
     return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+  public SaveData getSaveData() {
+    return saveData;
   }
 }

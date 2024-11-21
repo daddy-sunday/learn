@@ -18,7 +18,7 @@ import com.zhiyuan.zm.raft.rpc.DataRpcHandler;
 import com.zhiyuan.zm.raft.rpc.DefaultRpcServer;
 import com.zhiyuan.zm.raft.rpc.RaftRpcHandler;
 import com.zhiyuan.zm.raft.util.ByteUtil;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteBatch;
@@ -86,34 +86,37 @@ public class RaftService {
     raftStatus.setLocalAddress(currentNode);
     raftStatus.setPersonelNum(split.length);
 
-    byte[] bytes = saveLog.getBytes(RaftUtil.generateRaftInitKey(groupId));
+    byte[] bytes = saveLog.getBytes(KeyUtil.generateRaftInitKey(groupId));
     if (bytes == null) {
-      //写入一个空字节
+      saveData.put(KeyUtil.generateApplyLogKey(groupId), ByteUtil.longToBytes(KeyUtil.INIT_LOG_INDEX));
+      //这一行应该只有调度节点需要
+      saveData.put(KeyUtil.generateTransactionIdKey(), ByteUtil.longToBytes(0L));
+     // saveData.put();
       WriteBatch writeBatch = new WriteBatch();
-      writeBatch.put(RaftUtil.generateRaftInitKey(groupId), new byte[] {});
+      //写入一个空字节
+      writeBatch.put(KeyUtil.generateRaftInitKey(groupId), new byte[] {});
       //初始化一条log
-      writeBatch.put(RaftUtil.generateLogKey(groupId, RaftUtil.INIT_LOG_INDEX),
-          JSON.toJSONBytes(new LogEntries(RaftUtil.INIT_LOG_INDEX, RaftUtil.INIT_TERM, "")));
-      raftStatus.setCurrentTerm(RaftUtil.INIT_TERM);
-      raftStatus.setAppliedIndex(RaftUtil.INIT_LOG_INDEX);
-      raftStatus.setLastTimeLogIndex(RaftUtil.INIT_LOG_INDEX);
-      raftStatus.setLastTimeTerm(RaftUtil.INIT_TERM);
+      writeBatch.put(KeyUtil.generateLogKey(groupId, KeyUtil.INIT_LOG_INDEX),
+          JSON.toJSONBytes(new LogEntries(KeyUtil.INIT_LOG_INDEX, KeyUtil.INIT_TERM, "")));
+      raftStatus.setCurrentTerm(KeyUtil.INIT_TERM);
+      raftStatus.setAppliedIndex(KeyUtil.INIT_LOG_INDEX);
+      raftStatus.setLastTimeLogIndex(KeyUtil.INIT_LOG_INDEX);
+      raftStatus.setLastTimeTerm(KeyUtil.INIT_TERM);
       saveLog.writBatch(writeBatch);
-      saveData.put(RaftUtil.generateApplyLogKey(groupId), ByteUtil.longToBytes(RaftUtil.INIT_LOG_INDEX));
     } else {
-      LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(groupId, Long.MAX_VALUE));
+      LogEntries maxLog = saveLog.getMaxLog(KeyUtil.generateLogKey(groupId, Long.MAX_VALUE));
       raftStatus.setCurrentTerm(maxLog.getTerm());
       raftStatus.setLastTimeLogIndex(maxLog.getLogIndex());
       raftStatus.setLastTimeTerm(maxLog.getTerm());
-      byte[] appliedLogIndex = saveData.getValue(RaftUtil.generateApplyLogKey(groupId));
+      byte[] appliedLogIndex = saveData.getValue(KeyUtil.generateApplyLogKey(groupId));
       if (appliedLogIndex == null) {
         //上一次初始化失败时才有可能会走到这里
-        if (maxLog.getLogIndex() != RaftUtil.INIT_LOG_INDEX) {
+        if (maxLog.getLogIndex() != KeyUtil.INIT_LOG_INDEX) {
           LOG.error("出现了未知的情况，程序必须退出");
           System.exit(100);
         }
-        saveData.put(RaftUtil.generateApplyLogKey(groupId), ByteUtil.longToBytes(RaftUtil.INIT_LOG_INDEX));
-        raftStatus.setAppliedIndex(RaftUtil.INIT_LOG_INDEX);
+        saveData.put(KeyUtil.generateApplyLogKey(groupId), ByteUtil.longToBytes(KeyUtil.INIT_LOG_INDEX));
+        raftStatus.setAppliedIndex(KeyUtil.INIT_LOG_INDEX);
       } else {
         raftStatus.setAppliedIndex(
             ByteUtil.bytesToLong(appliedLogIndex));

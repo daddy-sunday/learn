@@ -25,7 +25,7 @@ import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.role.active.SaveLogTask;
 import com.zhiyuan.zm.raft.role.active.SendVote;
 import com.zhiyuan.zm.raft.service.RaftStatus;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,7 +103,7 @@ public class CandidateRole extends BaseRole implements Role {
     VoteRequest request = new VoteRequest();
 
     request.setCandidateId(raftStatus.getLocalAddress());
-    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
+    LogEntries maxLog = saveLog.getMaxLog(KeyUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
     request.setLastLogIndex(maxLog.getLogIndex());
     request.setLastLogTerm(maxLog.getTerm());
 

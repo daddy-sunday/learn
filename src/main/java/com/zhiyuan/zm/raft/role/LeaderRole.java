@@ -42,9 +42,10 @@ import com.zhiyuan.zm.raft.role.active.ChaseAfterLogTask;
 import com.zhiyuan.zm.raft.role.active.SaveLogTask;
 import com.zhiyuan.zm.raft.role.active.SendHeartbeat;
 import com.zhiyuan.zm.raft.role.active.SyncLogTask;
+import com.zhiyuan.zm.raft.role.transaction.TransactionService;
 import com.zhiyuan.zm.raft.rpc.InternalRpcClient;
 import com.zhiyuan.zm.raft.service.RaftStatus;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
@@ -94,6 +95,8 @@ public class LeaderRole extends BaseRole implements Role {
 
   private Thread userWorkthread;
 
+  private TransactionService transactionService;
+
 
   public LeaderRole(SaveData saveData, SaveLog saveLogInterface, RaftStatus raftStatus, RoleStatus roleStatus,
       GlobalConfig conf, BlockingQueue<LogEntries[]> applyLogQueue, BlockingQueue<TaskMaterial> saveLogQueue,
@@ -120,7 +123,7 @@ public class LeaderRole extends BaseRole implements Role {
             }
           }
         });
-    LogEntries maxLog = saveLog.getMaxLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
+    LogEntries maxLog = saveLog.getMaxLog(KeyUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
     logIndex = maxLog.getLogIndex();
     synLogQueue = new LinkedBlockingDeque<>(1000);
     syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus, synLogTaskInterval, sendHeartbeatTimeout);
@@ -129,6 +132,8 @@ public class LeaderRole extends BaseRole implements Role {
     //leader第一次启动时需要同步一次日志，保证所有节点的日志和自己是一样的
     executorService.submit(new SentFirstLog(maxLog.getTerm()));
     keepRuning = true;
+    //事务支持
+    transactionService = new TransactionService(this);
     if (userWorkthread != null) {
       userWorkthread.start();
     }
@@ -151,7 +156,7 @@ public class LeaderRole extends BaseRole implements Role {
 
       //开始发送日志
       try {
-        saveLog.saveLog(RaftUtil.generateLogKey(raftStatus.getGroupId(), logIndex), JSON.toJSONBytes(logEntrie));
+        saveLog.saveLog(KeyUtil.generateLogKey(raftStatus.getGroupId(), logIndex), JSON.toJSONBytes(logEntrie));
         int count = 1;
         LOG.debug("发送初始化日志");
         List<Future<SynchronizeLogResult>> futures = executorService

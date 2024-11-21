@@ -6,7 +6,7 @@ import com.zhiyuan.zm.raft.persistence.DefaultSaveLogImpl;
 import com.zhiyuan.zm.raft.persistence.SaveIterator;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.util.ByteUtil;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 import org.junit.Test;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
@@ -28,7 +28,7 @@ public class SaveLogTest {
     GlobalConfig config = new GlobalConfig();
     config.setLogPath("D:\\tmp\\raft\\log2");
     saveLog = new DefaultSaveLogImpl(config);
-    saveLog.delete(RaftUtil.generateLogKey(1, 7));
+    saveLog.delete(KeyUtil.generateLogKey(1, 7));
   }
 
   @Test

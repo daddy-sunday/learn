@@ -12,7 +12,7 @@ import com.zhiyuan.zm.raft.dto.LogEntries;
 import com.zhiyuan.zm.raft.dto.TaskMaterial;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.service.RaftStatus;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteBatch;
 import org.slf4j.Logger;
@@ -89,7 +89,7 @@ public class SaveLogTask {
           taskMaterials[i] = taskDto;
           LogEntries[] addLog = taskDto.getAddLog();
           for (LogEntries logEntries : addLog) {
-            writeBatch.put(RaftUtil.generateLogKey(raftStatus.getGroupId(), logEntries.getLogIndex()),
+            writeBatch.put(KeyUtil.generateLogKey(raftStatus.getGroupId(), logEntries.getLogIndex()),
                 JSON.toJSONBytes(logEntries));
           }
         }

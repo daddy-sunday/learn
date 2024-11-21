@@ -1,13 +1,24 @@
 package com.zhiyuan.zm.raft.role.transaction;
 
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.alibaba.fastjson.JSON;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.zhiyuan.zm.raft.constant.DataOperationType;
+import com.zhiyuan.zm.raft.dto.Command;
 import com.zhiyuan.zm.raft.dto.DataResponest;
-import com.zhiyuan.zm.raft.role.Role;
+import com.zhiyuan.zm.raft.dto.Row;
+import com.zhiyuan.zm.raft.role.LeaderRole;
+import com.zhiyuan.zm.raft.util.ByteUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 
 /**
  * @author zhouzhiyuan
@@ -19,40 +30,53 @@ public class TransactionService {
 
   private long transactionId;
 
+  private final byte[] transactionIdKey;
   /**
    * 这个值用来控制
    */
-  private AtomicReference<Long> maxTransactionId;
+  private final AtomicReference<Long> maxTransactionId;
 
   /**
    * 更新最大事务id的阈值
    */
-  private AtomicReference<Long> updateLimit;
+  private final AtomicReference<Long> updateLimit;
 
   /**
    * 每次缓存多少个事务id
    */
-  private long catchNumber = 500;
+  private final long catchNumber = 500;
 
-  private long updateStepSize;
+  private final long updateStepSize;
 
-  private Role role;
+  private final LeaderRole leader;
 
-  private ScheduledExecutorService executorService;
+  private final ExecutorService executorService;
 
-  private AtomicReference<Boolean> updateFlag = new AtomicReference<>(true);
+  private final AtomicReference<Boolean> updateFlag = new AtomicReference<>(true);
 
-  public TransactionService(Role role, ScheduledExecutorService executorService,long transactionId) {
-    this.role = role;
-    this.executorService = executorService;
-    this.transactionId = transactionId;
+  public TransactionService(LeaderRole leader) throws RocksDBException {
+    this.leader = leader;
+    this.executorService = new ThreadPoolExecutor(1, 1,
+        3600L, TimeUnit.MILLISECONDS,
+        new ArrayBlockingQueue<Runnable>(1),
+        new ThreadFactoryBuilder().setDaemon(true).setNameFormat("transaction_id_sync").build(),
+        (r, executor) -> {
+          try {
+            LOGGER.warn("transaction id sync exception");
+            executor.getQueue().put(r);
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        });
+    this.transactionIdKey = KeyUtil.generateTransactionIdKey();
+    this.transactionId = ByteUtil.bytesToLong(leader.getSaveData().getValue(transactionIdKey));
     this.maxTransactionId = new AtomicReference<>(transactionId + catchNumber);
     this.updateStepSize = catchNumber / 2;
     this.updateLimit = new AtomicReference<>(transactionId + updateStepSize);
   }
 
 
-  public long generateTransactionId() {
+  public synchronized long generateTransactionId() {
     transactionId++;
     //异步更新最大值
     if (transactionId > updateLimit.get()) {
@@ -61,18 +85,18 @@ public class TransactionService {
     } else {
       return transactionId;
     }
-
     if (transactionId >= maxTransactionId.get() && updateFlag.get()) {
       //发送更新最大值请求 ，并阻塞等待更新 .出现这种情况就代缓存个数不合理
-      LOGGER.warn("等待同步事务id，这可能是缓存事务id个数设置不合理");
-      long tmpTransactionId = maxTransactionId.get()+catchNumber;
-      String message = null;
-      DataResponest dataResponest = role.setData(message);
+      LOGGER.warn("Waiting sync transaction id，This may be because the number of catch transaction ids is set improperly");
+      long tmpTransactionId = maxTransactionId.get() + catchNumber;
+      DataResponest dataResponest = leader.setData(JSON.toJSONString(
+          new Command(DataOperationType.INSERT, new Row[] {new Row(transactionIdKey,tmpTransactionId)})
+      ));
       if (dataResponest.isSuccess()) {
         maxTransactionId.set(tmpTransactionId);
-        updateLimit.set(updateLimit.get()+catchNumber);
-      }else {
-        throw new RuntimeException("存储事务id失败");
+        updateLimit.set(updateLimit.get() + catchNumber);
+      } else {
+        throw new RuntimeException("Failed to store the transaction id ");
       }
     }
     return transactionId;
@@ -80,19 +104,20 @@ public class TransactionService {
 
 
   private void run() {
-    long tmpTransactionId = maxTransactionId.get()+catchNumber;
-    String message = null;
-    DataResponest dataResponest = role.setData(message);
+    Long tmpTransactionId = maxTransactionId.get() + catchNumber;
+    DataResponest dataResponest = leader.setData(JSON.toJSONString(
+        new Command(DataOperationType.INSERT, new Row[] {new Row(transactionIdKey,tmpTransactionId)})
+    ));
     if (dataResponest.isSuccess()) {
       maxTransactionId.set(tmpTransactionId);
-      updateLimit.set(updateLimit.get()+updateStepSize);
-      LOGGER.debug("更新最大事务id完成: "+tmpTransactionId);
+      updateLimit.set(updateLimit.get() + updateStepSize);
+      LOGGER.debug("更新最大事务id完成: " + tmpTransactionId);
     } else {
       LOGGER.warn("同步事务id失败");
       updateFlag.set(true);
     }
   }
 
-
-
+  //在应用数据时添加事务相关类型
+  //提交，不提交
 }

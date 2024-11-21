@@ -7,12 +7,11 @@ import java.nio.ByteBuffer;
  * @author zhouzhiyuan
  *@date 2022/5/10
  */
-public class RaftUtil {
+public class KeyUtil {
 
 
   public static final long  INIT_LOG_INDEX = 5;
   public static final long  INIT_TERM = 5;
-
   private static final byte RAFT_INIT_FLAG_KEY = 3;
 
   /**
@@ -28,7 +27,21 @@ public class RaftUtil {
 
   private static final byte DATA_KEY_PREFIX = 20;
 
+
   private static final byte TRANSACTION_KEY_PREFIX = 30;
+
+  private static final byte TRANSACTION_MAX_ID = 31;
+
+  private static final byte AUTO_INCREMENT_ID_PREFIX = 40;
+
+
+  /**
+   * 事务id key
+   * @return
+   */
+  public static byte[] generateTransactionIdKey() {
+    return generateCommon(Integer.MAX_VALUE, TRANSACTION_MAX_ID);
+  }
 
 
   /**

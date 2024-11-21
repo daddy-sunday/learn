@@ -1,5 +1,7 @@
 package com.zhiyuan.zm.raft.dto;
 
+import com.zhiyuan.zm.raft.util.ByteUtil;
+
 /**
  *@author zhouzhiyuan
  *@date 2022/4/2
@@ -13,6 +15,16 @@ public class Row {
   public Row(byte[] key, byte[] value) {
     this.key = key;
     this.value = value;
+  }
+
+  public Row(Long key, Long value) {
+    this.key = ByteUtil.longToBytes(key);
+    this.value = ByteUtil.longToBytes(value);
+  }
+
+  public Row(byte[] key, Long value) {
+    this.key = key;
+    this.value = ByteUtil.longToBytes(value);
   }
 
   public byte[] getKey() {

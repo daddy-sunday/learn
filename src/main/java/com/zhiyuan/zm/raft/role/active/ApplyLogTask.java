@@ -12,7 +12,7 @@ import com.zhiyuan.zm.raft.persistence.SaveIterator;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.ByteUtil;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.WriteBatch;
 import org.slf4j.Logger;
@@ -55,8 +55,8 @@ public class ApplyLogTask {
    */
   public ApplyLogTask(BlockingQueue<LogEntries[]> dataQueue, RaftStatus raftStatus,
       SaveData saveData, SaveLog saveLog, GlobalConfig config) {
-    this.appliedLogPrefixKey = RaftUtil.generateApplyLogKey(raftStatus.getGroupId());
-    this.dataKeyPrefix = RaftUtil.generateDataKey(raftStatus.getGroupId());
+    this.appliedLogPrefixKey = KeyUtil.generateApplyLogKey(raftStatus.getGroupId());
+    this.dataKeyPrefix = KeyUtil.generateDataKey(raftStatus.getGroupId());
     this.logQueue = dataQueue;
     this.raftStatus = raftStatus;
     this.saveData = saveData;
@@ -141,8 +141,8 @@ public class ApplyLogTask {
   private boolean applyLog(long lastApplied, long logIndex) throws RocksDBException {
     if (lastApplied < logIndex) {
       LOG.info("恢复应用日志：" + lastApplied + " -> " + logIndex);
-      SaveIterator scan = saveLog.scan(RaftUtil.generateLogKey(raftStatus.getGroupId(), lastApplied),
-          RaftUtil.generateLogKey(raftStatus.getGroupId(), logIndex));
+      SaveIterator scan = saveLog.scan(KeyUtil.generateLogKey(raftStatus.getGroupId(), lastApplied),
+          KeyUtil.generateLogKey(raftStatus.getGroupId(), logIndex));
       //todo 优化 数据量很大时有内存溢出的风险
       WriteBatch writeBatch = new WriteBatch();
       for (scan.seek(); scan.isValied(); scan.next()) {
@@ -151,7 +151,7 @@ public class ApplyLogTask {
         saveData.assembleData(writeBatch, new LogEntries[] {entries}, dataKeyPrefix);
       }
       //提交 applied id  随批提交应用日志记录，保证原子性
-      writeBatch.put(RaftUtil.generateApplyLogKey(raftStatus.getGroupId()), ByteUtil.longToBytes(logIndex));
+      writeBatch.put(KeyUtil.generateApplyLogKey(raftStatus.getGroupId()), ByteUtil.longToBytes(logIndex));
       saveData.writBatch(writeBatch);
       raftStatus.setAppliedIndex(logIndex);
       LOG.info("应用日志完成：" + lastApplied + " -> " + logIndex);

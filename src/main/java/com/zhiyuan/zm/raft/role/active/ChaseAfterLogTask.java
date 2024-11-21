@@ -15,7 +15,7 @@ import com.zhiyuan.zm.raft.dto.SynchronizeLogResult;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.role.RoleStatus;
 import com.zhiyuan.zm.raft.service.RaftStatus;
-import com.zhiyuan.zm.raft.util.RaftUtil;
+import com.zhiyuan.zm.raft.util.KeyUtil;
 import org.rocksdb.RocksDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,8 +83,8 @@ public class ChaseAfterLogTask {
           LogEntries prevLog;
           try {
             //todo 优化 ：当第一次追日志成功后，开始批量发送日志，一条一条发送太慢了
-            log = saveLog.get(RaftUtil.generateLogKey(status.getGroupId(), logId));
-            prevLog = saveLog.get(RaftUtil.generateLogKey(status.getGroupId(), logId - 1));
+            log = saveLog.get(KeyUtil.generateLogKey(status.getGroupId(), logId));
+            prevLog = saveLog.get(KeyUtil.generateLogKey(status.getGroupId(), logId - 1));
           } catch (RocksDBException e) {
             LOG.error(e.getMessage(), e);
             System.exit(100);
