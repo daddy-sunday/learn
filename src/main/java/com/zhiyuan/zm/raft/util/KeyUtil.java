@@ -39,8 +39,12 @@ public class KeyUtil {
    * 事务id key
    * @return
    */
-  public static byte[] generateTransactionIdKey() {
+  public static byte[] generateCacheTransactionIdKey() {
     return generateCommon(Integer.MAX_VALUE, TRANSACTION_MAX_ID);
+  }
+
+  public static byte[] generateTransactionIdKey(long transactionId) {
+    return generateCommon(transactionId, TRANSACTION_KEY_PREFIX);
   }
 
 
@@ -67,6 +71,13 @@ public class KeyUtil {
     ByteBuffer byteBuffer = ByteBuffer.allocate(5);
     byteBuffer.put(type);
     byteBuffer.putInt(raftGroupId);
+    return byteBuffer.array();
+  }
+
+  private static byte[] generateCommon(long raftGroupId, byte type) {
+    ByteBuffer byteBuffer = ByteBuffer.allocate(5);
+    byteBuffer.put(type);
+    byteBuffer.putLong(raftGroupId);
     return byteBuffer.array();
   }
 

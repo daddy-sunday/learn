@@ -90,7 +90,7 @@ public class RaftService {
     if (bytes == null) {
       saveData.put(KeyUtil.generateApplyLogKey(groupId), ByteUtil.longToBytes(KeyUtil.INIT_LOG_INDEX));
       //这一行应该只有调度节点需要
-      saveData.put(KeyUtil.generateTransactionIdKey(), ByteUtil.longToBytes(0L));
+      saveData.put(KeyUtil.generateCacheTransactionIdKey(), ByteUtil.longToBytes(0L));
      // saveData.put();
       WriteBatch writeBatch = new WriteBatch();
       //写入一个空字节

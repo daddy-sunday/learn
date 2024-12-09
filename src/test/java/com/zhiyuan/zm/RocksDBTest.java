@@ -17,6 +17,9 @@ public class RocksDBTest {
 
   private RocksDB rocksDB;
 
+  public RocksDBTest() {
+  }
+
   public RocksDBTest(GlobalConfig config) throws RocksDBException {
     File file = new File(config.getLogPath());
     if (!file.exists()) {
@@ -29,7 +32,7 @@ public class RocksDBTest {
   }
 
   @Test
-  private void snapshaot(){
+  public void snapshaot(){
     Snapshot snapshot = rocksDB.getSnapshot();
 
   }

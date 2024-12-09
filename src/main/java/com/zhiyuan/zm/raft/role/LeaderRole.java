@@ -15,6 +15,13 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.rocksdb.RocksDBException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alibaba.fastjson.JSON;
+import com.alipay.remoting.exception.RemotingException;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.zhiyuan.zm.conf.GlobalConfig;
 import com.zhiyuan.zm.extend.UserWork;
 import com.zhiyuan.zm.raft.constant.DataOperationType;
@@ -46,14 +53,6 @@ import com.zhiyuan.zm.raft.role.transaction.TransactionService;
 import com.zhiyuan.zm.raft.rpc.InternalRpcClient;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.KeyUtil;
-
-import org.rocksdb.RocksDBException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.alibaba.fastjson.JSON;
-import com.alipay.remoting.exception.RemotingException;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * @author zhouzhiyuan
@@ -108,35 +107,41 @@ public class LeaderRole extends BaseRole implements Role {
     sendHeartbeatTimeout = conf.getSendHeartbeatTimeout();
   }
 
-  void init() {
-    executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum() * 2, raftStatus.getPersonelNum() * 3,
-        3600L, TimeUnit.MILLISECONDS,
-        new ArrayBlockingQueue<Runnable>(100),
-        new ThreadFactoryBuilder().setDaemon(true).setNameFormat("leader").build(),
-        new RejectedExecutionHandler() {
-          @Override
-          public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            try {
-              executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-              e.printStackTrace();
+  boolean init() {
+    try {
+      executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum() * 2, raftStatus.getPersonelNum() * 3,
+          3600L, TimeUnit.MILLISECONDS,
+          new ArrayBlockingQueue<Runnable>(100),
+          new ThreadFactoryBuilder().setDaemon(true).setNameFormat("leader").build(),
+          new RejectedExecutionHandler() {
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+              try {
+                executor.getQueue().put(r);
+              } catch (InterruptedException e) {
+                e.printStackTrace();
+              }
             }
-          }
-        });
-    LogEntries maxLog = saveLog.getMaxLog(KeyUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
-    logIndex = maxLog.getLogIndex();
-    synLogQueue = new LinkedBlockingDeque<>(1000);
-    syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus, synLogTaskInterval, sendHeartbeatTimeout);
-    chaseAfterLogTask = new ChaseAfterLogTask(raftStatus, roleStatus, saveLog, sendHeartbeatTimeout);
-    emptyHeartbeat = getEmptyHeartbeats();
-    //leader第一次启动时需要同步一次日志，保证所有节点的日志和自己是一样的
-    executorService.submit(new SentFirstLog(maxLog.getTerm()));
-    keepRuning = true;
-    //事务支持
-    transactionService = new TransactionService(this);
-    if (userWorkthread != null) {
-      userWorkthread.start();
+          });
+      LogEntries maxLog = saveLog.getMaxLog(KeyUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
+      logIndex = maxLog.getLogIndex();
+      synLogQueue = new LinkedBlockingDeque<>(1000);
+      syncLogTask = new SyncLogTask(synLogQueue, raftStatus, roleStatus, synLogTaskInterval, sendHeartbeatTimeout);
+      chaseAfterLogTask = new ChaseAfterLogTask(raftStatus, roleStatus, saveLog, sendHeartbeatTimeout);
+      emptyHeartbeat = getEmptyHeartbeats();
+      //leader第一次启动时需要同步一次日志，保证所有节点的日志和自己是一样的
+      executorService.submit(new SentFirstLog(maxLog.getTerm()));
+      keepRuning = true;
+      //事务支持
+      transactionService = new TransactionService(this);
+      if (userWorkthread != null) {
+        userWorkthread.start();
+      }
+    } catch (Exception e) {
+      LOG.error("Failed to leader init", e);
+      return false;
     }
+    return true;
   }
 
   class SentFirstLog implements Runnable {
@@ -225,8 +230,9 @@ public class LeaderRole extends BaseRole implements Role {
    */
   @Override
   public void work() {
-
-    init();
+    if (!init()) {
+      return;
+    }
     //开始发送心跳
     do {
       try {
@@ -348,39 +354,38 @@ public class LeaderRole extends BaseRole implements Role {
   }
 
   /**
-   *		生成事务专属的key消息 。
-   * 		  内容： 特殊的key，客户端id， 事务id，开启事务标识，
-   * 		同步消息成功后再内存中维护一个事物管理数据结构 事务id，客户端id ，状态
-   * 		最后返回事务id。
+   * 生成事务专属的key消息 。 内容： 特殊的key，客户端id， 事务id，开启事务标识， 同步消息成功后再内存中维护一个事物管理数据结构 事务id，客户端id ，状态 最后返回事务id。
+   *
    * @param request
    * @return
    */
   @Override
-  public DataResponest opentransaction(String request){
+  public DataResponest opentransaction(String request) {
 
-
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+    return transactionService.openTranscation(request);
   }
 
 
   /**
-   *提交事务
+   * 提交事务
+   *
    * @param request
    * @return
    */
   @Override
-  public DataResponest commitTransaction(String request){
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  public DataResponest commitTransaction(String request) {
+    return transactionService.commitTranscation(request);
   }
 
   /**
-   *回滚事务
+   * 回滚事务
+   *
    * @param request
    * @return
    */
   @Override
-  public DataResponest rollbackTransaction(String request){
-    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  public DataResponest rollbackTransaction(String request) {
+    return transactionService.rollbackTranscation(request);
   }
 
   /**

@@ -29,6 +29,8 @@ public class StatusCode {
 
   public static final int UNSUPPORT_REQUEST_FUNCATION =  501;
 
+  public static final int TRANSACTION_EXCEPTION = 502;
+
   public static final int RAFT_UNABLE_SERVER =  600;
 
   public static final int NON_SEVICE =  601;

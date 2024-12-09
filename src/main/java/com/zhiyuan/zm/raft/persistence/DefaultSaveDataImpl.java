@@ -94,6 +94,7 @@ public class DefaultSaveDataImpl implements SaveData {
           case DataOperationType.EMPTY:
             break;
           case DataOperationType.TRANSACTION:
+
             break;
           case DataOperationType.CONFIG_CHANGE:
             break;
