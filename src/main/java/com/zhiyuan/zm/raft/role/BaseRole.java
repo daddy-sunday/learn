@@ -23,6 +23,7 @@ import com.zhiyuan.zm.raft.dto.VoteRequest;
 import com.zhiyuan.zm.raft.persistence.SaveData;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.role.active.SaveLogTask;
+import com.zhiyuan.zm.raft.exception.RaftFatalException;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.ByteUtil;
 import com.zhiyuan.zm.raft.util.KeyUtil;
@@ -277,11 +278,10 @@ public abstract class BaseRole implements Role {
         return new RaftRpcResponest(raftStatus.getCurrentTerm(), true, StatusCode.EMPTY);
       } else if (atomicInteger.get() > 1) {
         LOG.error("不应该出现的异常 ： follow存储日志时，count > 1 了");
-        System.exit(100);
       }
     } catch (RocksDBException e) {
       LOG.error("follow存储log失败 " + e.getMessage(), e);
-      System.exit(100);
+      throw new RaftFatalException("follow 存储 log 失败", e, 100);
     } catch (InterruptedException e) {
       LOG.error("follow存储log时超时被中断 " + e.getMessage(), e);
     }finally {

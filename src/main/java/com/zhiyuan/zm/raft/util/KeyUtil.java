@@ -75,7 +75,7 @@ public class KeyUtil {
   }
 
   private static byte[] generateCommon(long raftGroupId, byte type) {
-    ByteBuffer byteBuffer = ByteBuffer.allocate(5);
+    ByteBuffer byteBuffer = ByteBuffer.allocate(9);
     byteBuffer.put(type);
     byteBuffer.putLong(raftGroupId);
     return byteBuffer.array();

@@ -7,6 +7,7 @@ import com.zhiyuan.zm.conf.GlobalConfig;
 import com.zhiyuan.zm.extend.UserWork;
 import com.zhiyuan.zm.raft.dto.LogEntries;
 import com.zhiyuan.zm.raft.dto.TaskMaterial;
+import com.zhiyuan.zm.raft.exception.RaftFatalException;
 import com.zhiyuan.zm.raft.persistence.DefaultSaveDataImpl;
 import com.zhiyuan.zm.raft.persistence.DefaultSaveLogImpl;
 import com.zhiyuan.zm.raft.persistence.SaveData;
@@ -112,8 +113,7 @@ public class RaftService {
       if (appliedLogIndex == null) {
         //上一次初始化失败时才有可能会走到这里
         if (maxLog.getLogIndex() != KeyUtil.INIT_LOG_INDEX) {
-          LOG.error("出现了未知的情况，程序必须退出");
-          System.exit(100);
+          throw new RaftFatalException("出现了未知的情况，程序必须退出", 100);
         }
         saveData.put(KeyUtil.generateApplyLogKey(groupId), ByteUtil.longToBytes(KeyUtil.INIT_LOG_INDEX));
         raftStatus.setAppliedIndex(KeyUtil.INIT_LOG_INDEX);

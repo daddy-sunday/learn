@@ -56,7 +56,7 @@ public class RaftStatus {
   /**
    * 最后应用的日志id
    */
-  private volatile long appliedInedex = 1;
+  private volatile long appliedIndex = 1;
 
 
   /**
@@ -71,7 +71,7 @@ public class RaftStatus {
   /**
    * 人员数量
    */
-  private int personelNum;
+  private int personnelNum;
 
   /**
    * 本机地址
@@ -195,12 +195,28 @@ public class RaftStatus {
     this.localAddress = localAddress;
   }
 
-  public int getPersonelNum() {
-    return personelNum;
+  public int getPersonnelNum() {
+    return personnelNum;
   }
 
+  public void setPersonnelNum(int personnelNum) {
+    this.personnelNum = personnelNum;
+  }
+
+  /**
+   * @deprecated 请使用 {@link #getPersonnelNum()}
+   */
+  @Deprecated
+  public int getPersonelNum() {
+    return personnelNum;
+  }
+
+  /**
+   * @deprecated 请使用 {@link #setPersonnelNum(int)}
+   */
+  @Deprecated
   public void setPersonelNum(int personelNum) {
-    this.personelNum = personelNum;
+    this.personnelNum = personelNum;
   }
 
   public RaftStatus() {
@@ -233,12 +249,12 @@ public class RaftStatus {
   }
 
   public long getAppliedIndex() {
-    return appliedInedex;
+    return appliedIndex;
   }
 
   //单线程修改
   public void setAppliedIndex(long lastApplied) {
-    this.appliedInedex = lastApplied;
+    this.appliedIndex = lastApplied;
   }
 
   public List<String> getAllMembers() {
@@ -285,11 +301,11 @@ public class RaftStatus {
         ", votedFor='" + votedFor + '\'' +
         ", maxLogIndex=" + maxLogIndex +
         ", commitIndex=" + commitIndex +
-        ", appliedIndex=" + appliedInedex +
+        ", appliedIndex=" + appliedIndex +
         ", allMembers=" + allMembers +
         ", validMembers=" + validMembers +
         ", failedMembers=" + failedMembers +
-        ", personelNum=" + personelNum +
+        ", personnelNum=" + personnelNum +
         ", localAddress='" + localAddress + '\'' +
         ", leaderAddress='" + leaderAddress + '\'' +
         ", lastUpdateTime=" + lastUpdateTime +

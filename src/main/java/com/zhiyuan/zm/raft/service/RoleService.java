@@ -103,11 +103,11 @@ public class RoleService {
         case MessageType.RAFT_INFO:
           return currentRole.getRaftInfo();
         case MessageType.OPEN_TRANSACTION:
-          return currentRole.opentransaction(request.getMessage());
+          return currentRole.opentransaction(request.getClientId());
         case MessageType.COMMIT_TRANSACTION:
-          return currentRole.commitTransaction(request.getMessage());
+          return currentRole.commitTransaction(request.getClientId());
         case MessageType.ROLLBACK_TRANSACTION:
-          return currentRole.rollbackTransaction(request.getMessage());
+          return currentRole.rollbackTransaction(request.getClientId());
         default:
       }
     }

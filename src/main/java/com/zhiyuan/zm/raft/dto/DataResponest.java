@@ -5,56 +5,27 @@ import java.io.Serializable;
 import com.zhiyuan.zm.raft.constant.StatusCode;
 
 /**
- *@author zhouzhiyuan
- *@date 2021/11/23
+ * 数据响应类
+ * @author zhouzhiyuan
+ * @date 2021/11/23
+ * @deprecated 请使用 {@link DataResponse}
  */
-public class DataResponest implements Serializable {
-  private int status;
-  private String message;
-
+@Deprecated
+public class DataResponest extends DataResponse {
 
   public DataResponest() {
+    super();
   }
 
   public DataResponest(int status) {
-    this.status = status;
+    super(status);
   }
 
   public DataResponest(String message) {
-    this.status = StatusCode.SUCCESS;
-    this.message = message;
-  }
-
-  public boolean isSuccess(){
-    return this.status == StatusCode.SUCCESS;
+    super(message);
   }
 
   public DataResponest(int status, String message) {
-    this.status = status;
-    this.message = message;
-  }
-
-  public int getStatus() {
-    return status;
-  }
-
-  public void setStatus(int status) {
-    this.status = status;
-  }
-
-  public String getMessage() {
-    return message;
-  }
-
-  public void setMessage(String message) {
-    this.message = message;
-  }
-
-  @Override
-  public String toString() {
-    return "DataResponest{" +
-        "status=" + status +
-        ", message='" + message + '\'' +
-        '}';
+    super(status, message);
   }
 }

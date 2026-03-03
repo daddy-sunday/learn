@@ -9,6 +9,8 @@ import java.io.Serializable;
 public class DataRequest implements Serializable {
   private int type;
 
+  private String clientId;
+
   private String message;
 
   public DataRequest() {
@@ -17,6 +19,20 @@ public class DataRequest implements Serializable {
   public DataRequest(int type, String message) {
     this.type = type;
     this.message = message;
+  }
+
+  public DataRequest(int type, String clientId, String message) {
+    this.type = type;
+    this.clientId = clientId;
+    this.message = message;
+  }
+
+  public String getClientId() {
+    return clientId;
+  }
+
+  public void setClientId(String clientId) {
+    this.clientId = clientId;
   }
 
   public int getType() {

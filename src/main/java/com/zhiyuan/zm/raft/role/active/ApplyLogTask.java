@@ -10,6 +10,7 @@ import com.zhiyuan.zm.raft.dto.LogEntries;
 import com.zhiyuan.zm.raft.persistence.SaveData;
 import com.zhiyuan.zm.raft.persistence.SaveIterator;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
+import com.zhiyuan.zm.raft.exception.RaftFatalException;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.ByteUtil;
 import com.zhiyuan.zm.raft.util.KeyUtil;
@@ -93,7 +94,6 @@ public class ApplyLogTask {
         if (raftStatus.getAppliedIndex() + 1 != logIndex) {
           if (!applyLog(raftStatus.getAppliedIndex() + 1, logIndex)) {
             LOG.error("应用log日志时出现逻辑错误"+raftStatus+" logIndex="+logIndex);
-            System.exit(100);
           }
         }
         LOG.debug("检查到需要应用的任务数: " + size);
@@ -111,7 +111,7 @@ public class ApplyLogTask {
         if (logIndex == 0) {
           //todo  不应该出现的情况 ?
           LOG.error("没有找到 logIndex ，不应该出现的问题");
-          System.exit(100);
+          throw new RaftFatalException("致命错误，程序无法继续运行", 100);
         }
 
         //提交 applied id  随批提交应用日志记录，保证原子性
@@ -121,10 +121,10 @@ public class ApplyLogTask {
       } catch (RocksDBException e) {
         LOG.error("写入data失败", e);
         //todo  重试写入失败后退出程序 ?
-        System.exit(100);
+        throw new RaftFatalException("致命错误，程序无法继续运行", 100);
       } catch (Exception e) {
         LOG.error("未知错误", e);
-        System.exit(100);
+        throw new RaftFatalException("致命错误，程序无法继续运行", 100);
       }
       LOG.debug("应用log日志完成 appliedIndex="+logIndex);
     } catch (Exception e) {

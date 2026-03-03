@@ -131,7 +131,7 @@ public class ZMClientTest {
   public void ClintDelete() throws RemotingException, InterruptedException {
     ZMClient client = new ZMClient("localhost:20002");
     for (int i = 0; i < 300; i++) {
-      Row row = new Row((i + "王五和小六子").getBytes(), null);
+      Row row = new Row((i + "王五和小六子").getBytes(), (byte[]) null);
       DataResponest dataResponest = client.delete(new Row[] {row});
       System.out.println(dataResponest);
       Assert.assertEquals(dataResponest.getStatus(), 200);

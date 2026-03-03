@@ -50,6 +50,7 @@ import com.zhiyuan.zm.raft.role.active.SaveLogTask;
 import com.zhiyuan.zm.raft.role.active.SendHeartbeat;
 import com.zhiyuan.zm.raft.role.active.SyncLogTask;
 import com.zhiyuan.zm.raft.role.transaction.TransactionService;
+import com.zhiyuan.zm.raft.exception.RaftFatalException;
 import com.zhiyuan.zm.raft.rpc.InternalRpcClient;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.KeyUtil;
@@ -190,9 +191,11 @@ public class LeaderRole extends BaseRole implements Role {
           count += success;
           if (raftStatus.getPersonelNum() - count > count) {
             LOG.error("leader 初始化 同步log 失败 ");
-            System.exit(100);
+            throw new RaftFatalException("leader 初始化 同步 log 失败 ", 100);
           }
-          LOG.debug("初始化同步日志失败的任务" + raftStatus.getFailedMembers());
+          if (LOG.isDebugEnabled()) {
+        LOG.debug("初始化同步日志失败的任务{}", raftStatus.getFailedMembers());
+      }
           //清空失败的地址
           raftStatus.getFailedMembers().clear();
         } else {
@@ -206,7 +209,7 @@ public class LeaderRole extends BaseRole implements Role {
       } catch (InterruptedException | ExecutionException | RocksDBException e) {
         LOG.error("initlog error：" + e.getMessage());
         //todo  直接退出了?
-        System.exit(100);
+        throw new RaftFatalException("initlog error: " + e.getMessage(), e, 100);
       }
     }
 
@@ -279,7 +282,7 @@ public class LeaderRole extends BaseRole implements Role {
   private void exit() {
     LOG.info("退出leader 状态");
     if (userWorkthread != null) {
-      userWorkthread.stop();
+      userWorkthread.interrupt();
     }
     raftStatus.setServiceStatus(ServiceStatus.IN_SWITCH_ROLE);
     executorService.shutdownNow();
@@ -430,9 +433,8 @@ public class LeaderRole extends BaseRole implements Role {
     } catch (InterruptedException e) {
       LOG.warn("leader -> 存储log时超时被中断" + e.getMessage());
     } catch (Exception e) {
-      //todo 直接退出吗？
-      System.exit(100);
-      LOG.warn("leader -> set data exception  " + e.getMessage());
+      LOG.error("leader -> set data exception", e);
+      throw new RaftFatalException("leader -> set data exception", e, 100);
     }
     return new DataResponest(StatusCode.SYNLOG, "leader->setdata: synchronization log failed");
   }

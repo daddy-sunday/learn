@@ -29,7 +29,7 @@ public class GlobalConfig {
   /**
    * 保存log日志到rocksdb的间隔(毫秒)
    */
- private long savelogTaskInterval = 50;
+ private long saveLogTaskInterval = 50;
 
   /**
    *master节点同步log日志到follower节点的时间间隔(毫秒)
@@ -89,11 +89,23 @@ public class GlobalConfig {
   }
 
   public long getSavelogTaskInterval() {
-    return savelogTaskInterval;
+    return saveLogTaskInterval;
   }
 
+  /**
+   * @deprecated 请使用 {@link #getSaveLogTaskInterval()}
+   */
+  @Deprecated
   public void setSavelogTaskInterval(long savelogTaskInterval) {
-    this.savelogTaskInterval = savelogTaskInterval;
+    this.saveLogTaskInterval = savelogTaskInterval;
+  }
+
+  public long getSaveLogTaskInterval() {
+    return saveLogTaskInterval;
+  }
+
+  public void setSaveLogTaskInterval(long saveLogTaskInterval) {
+    this.saveLogTaskInterval = saveLogTaskInterval;
   }
 
   public long getSynLogTaskInterval() {

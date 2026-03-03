@@ -1,5 +1,7 @@
 package com.zhiyuan.zm.raft.rpc;
 
+import java.util.UUID;
+
 import com.alibaba.fastjson.JSON;
 import com.alipay.remoting.exception.RemotingException;
 import com.alipay.remoting.rpc.RpcClient;
@@ -24,6 +26,8 @@ public class ZMTransactionClient {
 
   private int timeOut = 10000;
 
+  private String clientId;
+
   /**
    * 这个值在运行过程中会随着leader节点的变更而变更
    */
@@ -33,13 +37,15 @@ public class ZMTransactionClient {
     this.client = new RpcClient();
     client.init();
     this.url = url;
+    clientId = UUID.randomUUID().toString();
   }
 
   public ZMTransactionClient(int defaultTimeout, String url) {
     this.client = new RpcClient();
     client.init();
-    this.timeOut = defaultTimeout;
     this.url = url;
+    this.timeOut = defaultTimeout;
+    clientId = UUID.randomUUID().toString();
   }
 
   public void close(String url) {
@@ -98,4 +104,20 @@ public class ZMTransactionClient {
       throws RemotingException, InterruptedException {
     return (DataResponest) client.invokeSync(url, request, timeOut);
   }
+
+  public DataResponest openTranscation() throws RemotingException, InterruptedException {
+    DataRequest request = new DataRequest(MessageType.OPEN_TRANSACTION,clientId,"");
+    return dataRequest(url, request, timeOut);
+  }
+
+  public DataResponest commitTranscation() throws RemotingException, InterruptedException {
+    DataRequest request = new DataRequest(MessageType.COMMIT_TRANSACTION,clientId,"");
+    return dataRequest(url, request, timeOut);
+  }
+
+  public DataResponest rollbackTranscation() throws RemotingException, InterruptedException {
+    DataRequest request = new DataRequest(MessageType.ROLLBACK_TRANSACTION,clientId,"");
+    return dataRequest(url, request, timeOut);
+  }
+
 }

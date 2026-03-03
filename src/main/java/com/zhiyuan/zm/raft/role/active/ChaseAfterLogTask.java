@@ -14,6 +14,7 @@ import com.zhiyuan.zm.raft.dto.RaftRpcRequest;
 import com.zhiyuan.zm.raft.dto.SynchronizeLogResult;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.role.RoleStatus;
+import com.zhiyuan.zm.raft.exception.RaftFatalException;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.KeyUtil;
 import org.rocksdb.RocksDBException;
@@ -87,8 +88,7 @@ public class ChaseAfterLogTask {
             prevLog = saveLog.get(KeyUtil.generateLogKey(status.getGroupId(), logId - 1));
           } catch (RocksDBException e) {
             LOG.error(e.getMessage(), e);
-            System.exit(100);
-            return;
+            throw new RaftFatalException("追 log 日志时读取存储失败", e, 100);
           }
 
           if (log != null) {
