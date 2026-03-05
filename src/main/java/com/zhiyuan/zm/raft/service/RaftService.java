@@ -36,6 +36,15 @@ public class RaftService {
 
   private static final Logger LOG = LoggerFactory.getLogger(RaftService.class);
 
+  // 组件引用，用于关闭
+  private DefaultRpcServer server;
+  private ApplyLogTask applyLogTask;
+  private SaveLogTask saveLogTask;
+  private RoleService roleService;
+  private SaveLog saveLog;
+  private SaveData saveData;
+  private volatile boolean running = false;
+
   public void start(GlobalConfig conf) throws RocksDBException {
     start(conf, null);
   }
@@ -43,28 +52,74 @@ public class RaftService {
   public void start(GlobalConfig conf, UserWork userWork) throws RocksDBException {
     LOG.info("global conf: " + conf);
     //基础组件
-    SaveLog saveLog = new DefaultSaveLogImpl(conf);
-    SaveData saveData = new DefaultSaveDataImpl(conf);
+    saveLog = new DefaultSaveLogImpl(conf);
+    saveData = new DefaultSaveDataImpl(conf);
     RaftStatus raftStatus = initRaftStatus(saveData, saveLog, conf);
     raftStatus.initDebug();
     BlockingQueue<LogEntries[]> applyLogQueue = new LinkedBlockingDeque<>(1000);
     BlockingQueue<TaskMaterial> saveLogQueue = new LinkedBlockingDeque<>(1000);
-    ApplyLogTask applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData, saveLog, conf);
-    SaveLogTask saveLogTask = new SaveLogTask(saveLogQueue, raftStatus, saveLog, conf);
+    applyLogTask = new ApplyLogTask(applyLogQueue, raftStatus, saveData, saveLog, conf);
+    saveLogTask = new SaveLogTask(saveLogQueue, raftStatus, saveLog, conf);
 
     //核心处理逻辑
-    RoleService roleService = new RoleService(saveData, conf, raftStatus, new RoleStatus(), saveLog, applyLogQueue,
+    roleService = new RoleService(saveData, conf, raftStatus, new RoleStatus(), saveLog, applyLogQueue,
         saveLogQueue, saveLogTask);
     roleService.setUserWork(userWork);
     RaftRpcHandler raftRpcHandler = new RaftRpcHandler(roleService);
     DataRpcHandler dataRpcHandler = new DataRpcHandler(roleService);
 
     //网络通信
-    DefaultRpcServer server = new DefaultRpcServer(conf, raftRpcHandler, dataRpcHandler);
+    server = new DefaultRpcServer(conf, raftRpcHandler, dataRpcHandler);
     server.start();
     applyLogTask.start();
     saveLogTask.start();
     roleService.startWork();
+    running = true;
+    LOG.info("RaftService started successfully");
+  }
+
+  /**
+   * 关闭 Raft 服务，优雅地停止所有组件
+   */
+  public void shutdown() {
+    if (!running) {
+      LOG.warn("RaftService is not running");
+      return;
+    }
+    LOG.info("Shutting down RaftService");
+    running = false;
+
+    // 1. 停止角色服务（这会使角色循环退出）
+    if (roleService != null) {
+      roleService.shutdown();
+    }
+
+    // 2. 停止后台任务
+    if (applyLogTask != null) {
+      applyLogTask.stop();
+    }
+    if (saveLogTask != null) {
+      saveLogTask.stop();
+    }
+
+    // 3. 停止 RPC 服务器
+    if (server != null) {
+      server.stop();
+    }
+
+    // 4. 关闭存储资源
+    if (saveLog != null) {
+      saveLog.close();
+    }
+    if (saveData != null) {
+      saveData.close();
+    }
+
+    LOG.info("RaftService shutdown completed");
+  }
+
+  public boolean isRunning() {
+    return running;
   }
 
 

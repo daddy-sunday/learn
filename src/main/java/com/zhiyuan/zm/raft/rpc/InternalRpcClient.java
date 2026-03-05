@@ -56,4 +56,36 @@ public class InternalRpcClient {
       throws RemotingException, InterruptedException {
     return (RaftRpcResponest) client.invokeSync(url, request, timeOut);
   }
+
+  // ==================== 事务相关方法 ====================
+
+  public static DataResponest openTransaction(String url, String clientId)
+      throws RemotingException, InterruptedException {
+    return dataRequest(url, new DataRequest(MessageType.OPEN_TRANSACTION, clientId), defaultTimeout);
+  }
+
+  public static DataResponest commitTransaction(String url, String clientId)
+      throws RemotingException, InterruptedException {
+    return dataRequest(url, new DataRequest(MessageType.COMMIT_TRANSACTION, clientId), defaultTimeout);
+  }
+
+  public static DataResponest rollbackTransaction(String url, String clientId)
+      throws RemotingException, InterruptedException {
+    return dataRequest(url, new DataRequest(MessageType.ROLLBACK_TRANSACTION, clientId), defaultTimeout);
+  }
+
+  public static DataResponest putInTransaction(String url, String request)
+      throws RemotingException, InterruptedException {
+    return dataRequest(url, new DataRequest(MessageType.PUT_IN_TRANSACTION, request), defaultTimeout);
+  }
+
+  public static DataResponest getInTransaction(String url, String request)
+      throws RemotingException, InterruptedException {
+    return dataRequest(url, new DataRequest(MessageType.GET_IN_TRANSACTION, request), defaultTimeout);
+  }
+
+  public static DataResponest deleteInTransaction(String url, String request)
+      throws RemotingException, InterruptedException {
+    return dataRequest(url, new DataRequest(MessageType.DELETE_IN_TRANSACTION, request), defaultTimeout);
+  }
 }

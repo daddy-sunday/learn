@@ -94,6 +94,7 @@ public class ApplyLogTask {
         if (raftStatus.getAppliedIndex() + 1 != logIndex) {
           if (!applyLog(raftStatus.getAppliedIndex() + 1, logIndex)) {
             LOG.error("应用log日志时出现逻辑错误"+raftStatus+" logIndex="+logIndex);
+            throw new RaftFatalException("致命错误，程序无法继续运行", 100);
           }
         }
         LOG.debug("检查到需要应用的任务数: " + size);

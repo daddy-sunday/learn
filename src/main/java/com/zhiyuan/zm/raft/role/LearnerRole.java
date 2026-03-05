@@ -4,6 +4,7 @@ import java.util.concurrent.BlockingQueue;
 
 import com.zhiyuan.zm.conf.GlobalConfig;
 import com.zhiyuan.zm.extend.UserWork;
+import com.zhiyuan.zm.raft.constant.StatusCode;
 import com.zhiyuan.zm.raft.dto.AddLogRequest;
 import com.zhiyuan.zm.raft.dto.DataResponest;
 import com.zhiyuan.zm.raft.dto.GetData;
@@ -61,5 +62,53 @@ public class LearnerRole extends BaseRole{
     return null;
   }
 
+  @Override
+  public DataResponest opentransaction(String request) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
+  }
 
+  @Override
+  public DataResponest commitTransaction(String request) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
+  }
+
+  @Override
+  public DataResponest rollbackTransaction(String request) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
+  }
+
+  @Override
+  public DataResponest putInTransaction(String request) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
+  }
+
+  @Override
+  public DataResponest getInTransaction(String request) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
+  }
+
+  @Override
+  public DataResponest deleteInTransaction(String request) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
+  }
+
+  @Override
+  public DataResponest leaderMove(com.zhiyuan.zm.raft.dto.LeaderMoveDto leaderMoveDto) {
+    return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持 leader 漂移");
+  }
+
+  @Override
+  public DataResponest snapshaotCopy(String request) {
+    return null;
+  }
+
+  @Override
+  public DataResponest getRaftInfo() {
+    return null;
+  }
+
+  @Override
+  public DataResponest configurationChange(com.zhiyuan.zm.raft.dto.ConfigurationChangeDto configurationChangeDto) {
+    return null;
+  }
 }

@@ -93,4 +93,12 @@ public class DefaultSaveLogImpl implements SaveLog {
   public void writBatch(WriteBatch batch ) throws RocksDBException {
     rocksDB.write(new WriteOptions(),batch);
   }
+
+  @Override
+  public void close() {
+    if (rocksDB != null) {
+      rocksDB.close();
+      rocksDB = null;
+    }
+  }
 }

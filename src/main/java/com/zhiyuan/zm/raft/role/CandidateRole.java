@@ -58,6 +58,8 @@ public class CandidateRole extends BaseRole implements Role {
     List<SendVote> sendVotes = new LinkedList<>();
     VoteRequest request = getVoteRequest(sendVotes);
     raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
+    raftStatus.currentTermAddOne();
+    request.setTerm(raftStatus.getCurrentTerm());
     //开始选举
     do {
       try {
@@ -66,8 +68,6 @@ public class CandidateRole extends BaseRole implements Role {
         raftStatus.setVotedFor(null);
         //投票结果，默认每次选举都给自己投一票
         int tickets = 1;
-        raftStatus.currentTermAddOne();
-        request.setTerm(raftStatus.getCurrentTerm());
         //get方法为阻塞方法，所以等待时间放入线程中
         int voteTimeOut = getVoteTimeOut();
         List<Future<Boolean>> futures = executorService
@@ -121,7 +121,7 @@ public class CandidateRole extends BaseRole implements Role {
    */
   private int getVoteTimeOut() {
     Random r = new Random();
-    return r.nextInt(600) % (600 - 300 + 1) + 300;
+    return r.nextInt(600) % (6000 - 3000 + 1) + 3000;
   }
 
 
@@ -162,5 +162,35 @@ public class CandidateRole extends BaseRole implements Role {
   @Override
   public DataResponest doDataExchange() {
     throw new UnsupportedOperationException("candidate 角色不支持的操作");
+  }
+
+  @Override
+  public DataResponest opentransaction(String request) {
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
+  }
+
+  @Override
+  public DataResponest commitTransaction(String request) {
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
+  }
+
+  @Override
+  public DataResponest rollbackTransaction(String request) {
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
+  }
+
+  @Override
+  public DataResponest putInTransaction(String request) {
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
+  }
+
+  @Override
+  public DataResponest getInTransaction(String request) {
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
+  }
+
+  @Override
+  public DataResponest deleteInTransaction(String request) {
+    return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
   }
 }

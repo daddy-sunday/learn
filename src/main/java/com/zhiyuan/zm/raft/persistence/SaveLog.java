@@ -31,4 +31,9 @@ public interface SaveLog  {
   void  assembleData(WriteBatch batch,byte[] key, LogEntries log)  throws RocksDBException;
 
   void writBatch(WriteBatch batch) throws RocksDBException;
+
+  /**
+   * 关闭 RocksDB 资源
+   */
+  void close();
 }

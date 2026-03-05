@@ -18,7 +18,8 @@ public class MessageType {
   public static final int COMMIT_TRANSACTION = 10;
   public static final int ROLLBACK_TRANSACTION = 11;
 
-
-
+  public static final int PUT_IN_TRANSACTION = 12;
+  public static final int DELETE_IN_TRANSACTION = 13;
+  public static final int GET_IN_TRANSACTION = 14;
 
 }

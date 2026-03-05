@@ -34,6 +34,17 @@ public class KeyUtil {
 
   private static final byte AUTO_INCREMENT_ID_PREFIX = 40;
 
+  /**
+   * MVCC 数据 Key 前缀（扁平化存储）
+   * Key 格式：1 字节类型 + 4 字节 groupId + N 字节 userKey + 8 字节 transactionId
+   */
+  public static final byte MVCC_DATA_KEY_PREFIX = 50;
+
+  /**
+   * MVCC 全局最后提交时间戳 Key（用于分配 snapshotTs）
+   */
+  private static final byte MVCC_LAST_COMMIT_TS_PREFIX = 51;
+
 
   /**
    * 事务id key
@@ -74,10 +85,10 @@ public class KeyUtil {
     return byteBuffer.array();
   }
 
-  private static byte[] generateCommon(long raftGroupId, byte type) {
+  private static byte[] generateCommon(long transactionId, byte type) {
     ByteBuffer byteBuffer = ByteBuffer.allocate(9);
     byteBuffer.put(type);
-    byteBuffer.putLong(raftGroupId);
+    byteBuffer.putLong(transactionId);
     return byteBuffer.array();
   }
 
@@ -111,5 +122,78 @@ public class KeyUtil {
    */
   public static byte[] generateDataKey(int raftGroupId){
     return generateCommon(raftGroupId, DATA_KEY_PREFIX);
+  }
+
+  // ==================== MVCC 相关 Key 生成方法 ====================
+
+  /**
+   * 生成 MVCC 数据 Key（扁平化存储）
+   * Key 格式：1 字节类型 + 4 字节 groupId + N 字节 userKey + 8 字节 transactionId
+   * @param groupId Raft 组 ID
+   * @param userKey 用户数据 Key
+   * @param transactionId 事务 ID
+   * @return MVCC 数据 Key
+   */
+  public static byte[] generateMVCCDataKey(int groupId, byte[] userKey, long transactionId) {
+    ByteBuffer buffer = ByteBuffer.allocate(1 + 4 + userKey.length + 8);
+    buffer.put(MVCC_DATA_KEY_PREFIX);
+    buffer.putInt(groupId);
+    buffer.put(userKey);
+    buffer.putLong(transactionId);
+    return buffer.array();
+  }
+
+  /**
+   * 生成 MVCC 数据 Key 前缀（用于范围查询）
+   * Key 格式：1 字节类型 + 4 字节 groupId + N 字节 userKey
+   * @param groupId Raft 组 ID
+   * @param userKey 用户数据 Key
+   * @return MVCC 数据 Key 前缀
+   */
+  public static byte[] generateMVCCDataKeyPrefix(int groupId, byte[] userKey) {
+    ByteBuffer buffer = ByteBuffer.allocate(1 + 4 + userKey.length);
+    buffer.put(MVCC_DATA_KEY_PREFIX);
+    buffer.putInt(groupId);
+    buffer.put(userKey);
+    return buffer.array();
+  }
+
+  /**
+   * 生成 MVCC 数据 Key 范围起始 Key（用于查询某个 userKey 的所有版本）
+   * @param groupId Raft 组 ID
+   * @param userKey 用户数据 Key
+   * @return 起始 Key
+   */
+  public static byte[] generateMVCCDataKeyStart(int groupId, byte[] userKey) {
+    return generateMVCCDataKeyPrefix(groupId, userKey);
+  }
+
+  /**
+   * 生成 MVCC 数据 Key 范围结束 Key（用于查询某个 userKey 的所有版本）
+   * @param groupId Raft 组 ID
+   * @param userKey 用户数据 Key
+   * @return 结束 Key
+   */
+  public static byte[] generateMVCCDataKeyEnd(int groupId, byte[] userKey) {
+    byte[] prefix = generateMVCCDataKeyPrefix(groupId, userKey);
+    // 将前缀的最后一个字节 +1，得到范围查询的结束 Key
+    byte[] endKey = new byte[prefix.length + 8];
+    System.arraycopy(prefix, 0, endKey, 0, prefix.length);
+    // 填充 8 个字节的 0xFF，确保覆盖所有 transactionId
+    for (int i = prefix.length; i < endKey.length; i++) {
+      endKey[i] = (byte) 0xFF;
+    }
+    return endKey;
+  }
+
+  /**
+   * 生成 MVCC 全局最后提交时间戳 Key
+   * @return MVCC 全局最后提交时间戳 Key
+   */
+  public static byte[] generateMVCCLastCommitTsKey() {
+    ByteBuffer buffer = ByteBuffer.allocate(9);
+    buffer.put(MVCC_LAST_COMMIT_TS_PREFIX);
+    buffer.putLong(0L);
+    return buffer.array();
   }
 }

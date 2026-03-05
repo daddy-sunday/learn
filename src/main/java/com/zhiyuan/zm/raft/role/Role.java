@@ -71,6 +71,27 @@ public interface Role {
    */
   DataResponest rollbackTransaction(String request);
 
+  /**
+   * 在事务内写入数据
+   * @param request 请求数据（JSON 格式的 Row 数组）
+   * @return 操作结果
+   */
+  DataResponest putInTransaction(String request);
+
+  /**
+   * 在事务内读取数据（快照读）
+   * @param request 请求数据（JSON 格式，包含 key 和 clientId）
+   * @return 操作结果
+   */
+  DataResponest getInTransaction(String request);
+
+  /**
+   * 在事务内删除数据
+   * @param request 请求数据（JSON 格式的 Row 数组）
+   * @return 操作结果
+   */
+  DataResponest deleteInTransaction(String request);
+
 
   /**
    * 角色之间的状态交换，比如follower想知道当前leader的 log entires index 以支持读取数据。

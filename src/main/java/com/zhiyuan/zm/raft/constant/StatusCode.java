@@ -37,6 +37,11 @@ public class StatusCode {
 
   public static final int ERROR_REQUEST = 602;
 
+  /**
+   * 数据未找到
+   */
+  public static final int NOT_FOUND = 404;
+
 
 
   public static final int NOT_LEADER = 606;

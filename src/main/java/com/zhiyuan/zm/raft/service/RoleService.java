@@ -61,7 +61,12 @@ public class RoleService {
 
   public void startWork() {
     while (true) {
-      switch (roleStatus.getNodeStatus()) {
+      int status = roleStatus.getNodeStatus();
+      if (status == RoleStatus.SHUTDOWN) {
+        LOG.info("Node is shutting down, exiting role work loop");
+        break;
+      }
+      switch (status) {
         case RoleStatus.FOLLOWER:
           currentRole = followRole;
           followRole.work();
@@ -108,6 +113,12 @@ public class RoleService {
           return currentRole.commitTransaction(request.getClientId());
         case MessageType.ROLLBACK_TRANSACTION:
           return currentRole.rollbackTransaction(request.getClientId());
+        case MessageType.PUT_IN_TRANSACTION:
+          return currentRole.putInTransaction(request.getMessage());
+        case MessageType.GET_IN_TRANSACTION:
+          return currentRole.getInTransaction(request.getMessage());
+        case MessageType.DELETE_IN_TRANSACTION:
+          return currentRole.deleteInTransaction(request.getMessage());
         default:
       }
     }
@@ -122,4 +133,13 @@ public class RoleService {
     }
   }
 
+  /**
+   * 关闭角色服务，停止当前角色的工作循环
+   */
+  public void shutdown() {
+    LOG.info("Shutting down RoleService");
+    // 设置角色状态为 SHUTDOWN，所有角色的 work 循环都会退出
+    roleStatus.setNodeStatus(RoleStatus.SHUTDOWN);
+    LOG.info("RoleService shutdown completed");
+  }
 }

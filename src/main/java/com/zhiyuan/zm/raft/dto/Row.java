@@ -38,7 +38,9 @@ public class Row {
     this.value = ByteUtil.longToBytes(value);
   }
 
-
+  // 默认构造函数，用于 fastjson 反序列化
+  public Row() {
+  }
 
   public byte[] getKey() {
     return key;

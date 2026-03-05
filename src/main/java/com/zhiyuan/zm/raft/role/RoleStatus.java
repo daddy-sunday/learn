@@ -27,6 +27,11 @@ public class RoleStatus {
   public static final int LEARNER = 4;
 
   /**
+   * 关闭状态
+   */
+  public static final int SHUTDOWN = -1;
+
+  /**
    * node  status
    */
   private  volatile int defaultStatus = FOLLOWER;
@@ -88,7 +93,11 @@ public class RoleStatus {
     }
   }
 
-  public  int getNodeStatus() {
+  public int getNodeStatus() {
     return defaultStatus;
+  }
+
+  public void setNodeStatus(int nodeStatus) {
+    this.defaultStatus = nodeStatus;
   }
 }

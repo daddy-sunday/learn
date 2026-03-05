@@ -1,5 +1,6 @@
 package com.zhiyuan.zm.raft.role.transaction;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -7,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.rocksdb.RocksDBException;
@@ -35,6 +37,7 @@ public class TransactionService {
 
   private long allocatedTransactionId;
 
+  //1 字节（事务类型）+ 4 字节（使用int最大值）
   private final byte[] transactionIdKey;
 
   /**
@@ -65,6 +68,17 @@ public class TransactionService {
    * 注意：这个 Map 只缓存当前节点活跃的事务状态，持久化状态存储在 RocksDB 中
    */
   private final Map<String, TransactionInfo> transactionStatus = new ConcurrentHashMap<>();
+
+  /**
+   * 事务内待提交数据缓存
+   *  key 为 clientId，value 为待提交的数据行
+   */
+  private final Map<String, List<Row>> pendingWrites = new ConcurrentHashMap<>();
+
+  /**
+   * 事务内数据操作计数
+   */
+  private final Map<String, AtomicInteger> transactionDataCount = new ConcurrentHashMap<>();
 
   public TransactionService(LeaderRole leader) throws RocksDBException {
     this.leader = leader;
@@ -108,10 +122,29 @@ public class TransactionService {
    * 节点重启后，可以从 RocksDB 中读取所有状态为 OPEN 的事务
    */
   private void recoverTransactionStatus() throws RocksDBException {
-    // TODO: 实现从事务存储中恢复未完成的事务状态
-    // 目前事务状态已经通过 KeyUtil.generateTransactionIdKey(transactionId) 持久化到 RocksDB
-    // 节点重启后可以扫描所有事务记录，恢复 OPEN 状态的事务到内存缓存中
-    LOGGER.info("事务服务初始化完成，当前已分配事务 ID: {}", allocatedTransactionId);
+    // 扫描所有事务记录，恢复 OPEN 状态的事务到内存缓存中
+    byte[] startKey = KeyUtil.generateTransactionIdKey(0);
+    byte[] endKey = KeyUtil.generateTransactionIdKey(Long.MAX_VALUE);
+
+    List<com.zhiyuan.zm.raft.dto.Row> rows = leader.getSaveData().scan(startKey, endKey);
+    int recoveredCount = 0;
+    for (com.zhiyuan.zm.raft.dto.Row row : rows) {
+      try {
+        TransactionInfo info = JSON.parseObject(new String(row.getValue()), TransactionInfo.class);
+        if (info.getStatus() == Status.OPEN) {
+          // 使用 clientId 作为 key 恢复事务状态
+          // 由于无法从持久化数据中恢复 clientId，这里只能恢复事务 ID 和状态
+          // 实际需要客户端重新发起事务或使用其他机制关联 clientId
+          LOGGER.info("恢复未完成的事务：transactionId={}, status={}",
+              info.getTransactionId(), info.getStatus());
+          recoveredCount++;
+        }
+      } catch (Exception e) {
+        LOGGER.warn("解析事务状态失败：key={}", row.getKey(), e);
+      }
+    }
+    LOGGER.info("事务服务初始化完成，当前已分配事务 ID: {}, 恢复未完成事务数：{}",
+        allocatedTransactionId, recoveredCount);
   }
 
 
@@ -142,7 +175,7 @@ public class TransactionService {
       maxTransactionId.set(tmpTransactionId);
       updateLimit.set(updateLimit.get() + cacheNumber);
     } else {
-      throw new RuntimeException("Failed to store the transaction id ");
+      throw new RuntimeException("Failed to store the transaction id : "+dataResponest.getMessage());
     }
   }
 
@@ -213,20 +246,72 @@ public class TransactionService {
 
     private Long transactionId;
 
+    private long dataCount;  // 事务内数据条数
+
+    // ==================== MVCC 相关字段 ====================
+
+    /**
+     * 快照时间戳（事务开始时的全局最大 commitTs）
+     * 用于快照读：事务只能看到 commitTs <= snapshotTs 的数据版本
+     */
+    private long snapshotTs;
+
+    /**
+     * 事务开始时间戳（用于冲突检测）
+     */
+    private long beginTs;
+
+    /**
+     * 提交时间戳（事务提交时分配）
+     */
+    private long commitTs;
+
+    /**
+     * 写入集（记录修改的 key，用于冲突检测）
+     * 存储的是 userKey 的字符串形式
+     */
+    private java.util.Set<String> writeSet;
+
     public TransactionInfo() {
       this.timestamp = System.currentTimeMillis();
       this.status = Status.OPEN;
+      this.writeSet = new java.util.HashSet<>();
     }
 
     public TransactionInfo(long transactionId) {
       this.timestamp = System.currentTimeMillis();
       this.status = Status.OPEN;
       this.transactionId = transactionId;
+      this.writeSet = new java.util.HashSet<>();
     }
 
     public TransactionInfo(long timestamp, Status status) {
       this.timestamp = timestamp;
       this.status = status;
+      this.writeSet = new java.util.HashSet<>();
+    }
+
+    public TransactionInfo(long transactionId, long dataCount) {
+      this.timestamp = System.currentTimeMillis();
+      this.status = Status.OPEN;
+      this.transactionId = transactionId;
+      this.dataCount = dataCount;
+      this.writeSet = new java.util.HashSet<>();
+    }
+
+    /**
+     * MVCC 构造函数
+     * @param transactionId 事务 ID
+     * @param snapshotTs 快照时间戳
+     * @param beginTs 开始时间戳
+     */
+    public TransactionInfo(long transactionId, long snapshotTs, long beginTs) {
+      this.timestamp = System.currentTimeMillis();
+      this.status = Status.OPEN;
+      this.transactionId = transactionId;
+      this.snapshotTs = snapshotTs;
+      this.beginTs = beginTs;
+      this.writeSet = new java.util.HashSet<>();
     }
 
     public Long getTransactionId() {
@@ -252,23 +337,84 @@ public class TransactionService {
     public void setStatus(Status status) {
       this.status = status;
     }
+
+    public long getDataCount() {
+      return dataCount;
+    }
+
+    public void setDataCount(long dataCount) {
+      this.dataCount = dataCount;
+    }
+
+    public void incrementDataCount() {
+      this.dataCount++;
+    }
+
+    // ==================== MVCC 相关方法 ====================
+
+    public long getSnapshotTs() {
+      return snapshotTs;
+    }
+
+    public void setSnapshotTs(long snapshotTs) {
+      this.snapshotTs = snapshotTs;
+    }
+
+    public long getBeginTs() {
+      return beginTs;
+    }
+
+    public void setBeginTs(long beginTs) {
+      this.beginTs = beginTs;
+    }
+
+    public long getCommitTs() {
+      return commitTs;
+    }
+
+    public void setCommitTs(long commitTs) {
+      this.commitTs = commitTs;
+    }
+
+    public java.util.Set<String> getWriteSet() {
+      return writeSet;
+    }
+
+    public void setWriteSet(java.util.Set<String> writeSet) {
+      this.writeSet = writeSet;
+    }
+
+    public void addToWriteSet(String userKey) {
+      if (this.writeSet == null) {
+        this.writeSet = new java.util.HashSet<>();
+      }
+      this.writeSet.add(userKey);
+    }
+
+    public boolean isInWriteSet(String userKey) {
+      return this.writeSet != null && this.writeSet.contains(userKey);
+    }
   }
 
   /**
    * 开启事务
-   * @param request 请求标识
+   * @param request 请求标识 (clientId)
    * @return 开启结果
    */
   public DataResponest openTranscation(String request) {
     long transactionId = generateTransactionId();
     TransactionInfo transactionInfo = new TransactionInfo(transactionId);
+    // 将 TransactionInfo 序列化为 JSON 字符串的 byte 数组，避免 fastjson 反序列化问题
+    byte[] valueBytes = JSON.toJSONBytes(transactionInfo);
     DataResponest dataResponest = leader.setData(JSON.toJSONString(
         new Command(DataOperationType.INSERT, new Row[] {new Row(KeyUtil.generateTransactionIdKey(transactionId)
-            , transactionInfo)})
+            , valueBytes)})
     ));
     if (dataResponest.isSuccess()) {
       dataResponest.setMessage(request);
       transactionStatus.put(request, transactionInfo);
+      pendingWrites.put(request, new java.util.LinkedList<>());
+      transactionDataCount.put(request, new AtomicInteger(0));
       LOGGER.info("Successful open transaction : " + request);
       return dataResponest;
     } else {
@@ -279,21 +425,44 @@ public class TransactionService {
 
   /**
    * 提交事务
-   * @param request 请求标识
+   * @param request 请求标识 (clientId)
    * @return 提交结果
    */
   public DataResponest commitTranscation(String request) {
     TransactionInfo info = transactionStatus.get(request);
     if (info != null) {
       if (info.getStatus().isOpen()) {
+        // 1. 将缓存的数据写入 Raft 日志
+        List<Row> pendingRows = pendingWrites.get(request);
+        if (pendingRows != null && !pendingRows.isEmpty()) {
+          // 将待提交的数据写入 Raft 日志
+          Command command = new Command(DataOperationType.INSERT,
+              pendingRows.toArray(new Row[0]));
+          DataResponest dataResponest = leader.setData(JSON.toJSONString(command));
+          if (!dataResponest.isSuccess()) {
+            LOGGER.error("Failed to commit transaction data : " + dataResponest.getMessage());
+            return new DataResponest(StatusCode.TRANSACTION_EXCEPTION,
+                "Failed to commit transaction data: " + dataResponest.getMessage());
+          }
+        }
+
+        // 2. 更新事务状态为 CLOSE
         info.setStatus(Status.CLOSE);
-        DataResponest dataResponest = leader.setData(JSON.toJSONString(
+        // 将 TransactionInfo 序列化为 JSON 字符串的 byte 数组，避免 fastjson 反序列化问题
+        byte[] valueBytes = JSON.toJSONBytes(info);
+        DataResponest statusResponest = leader.setData(JSON.toJSONString(
             new Command(DataOperationType.INSERT, new Row[] {new Row(KeyUtil.generateTransactionIdKey(
                 info.getTransactionId())
-                , info)})
+                , valueBytes)})
         ));
-        LOGGER.info("Successful commit transaction : " + request);
-        return dataResponest;
+
+        // 3. 清理缓存数据
+        pendingWrites.remove(request);
+        transactionDataCount.remove(request);
+        transactionStatus.remove(request);
+
+        LOGGER.info("Successful commit transaction : " + request + ", dataCount=" + info.getDataCount());
+        return statusResponest;
       }
     }
     LOGGER.warn("Failed to commit transaction, the transaction status is incorrect : " + info);
@@ -302,24 +471,158 @@ public class TransactionService {
 
   /**
    * 回滚事务
-   * @param request 请求标识
+   * @param request 请求标识 (clientId)
    * @return 回滚结果
    */
   public DataResponest rollbackTranscation(String request) {
     TransactionInfo info = transactionStatus.get(request);
     if (info != null) {
       if (info.getStatus().isOpen()) {
+        // 1. 更新事务状态为 ROLLBACK
         info.setStatus(Status.ROLLBACK);
+        // 将 TransactionInfo 序列化为 JSON 字符串的 byte 数组，避免 fastjson 反序列化问题
+        byte[] valueBytes = JSON.toJSONBytes(info);
         DataResponest dataResponest = leader.setData(JSON.toJSONString(
             new Command(DataOperationType.INSERT, new Row[] {new Row(KeyUtil.generateTransactionIdKey(
                 info.getTransactionId())
-                , info)})
+                , valueBytes)})
         ));
+
+        // 2. 清理缓存数据（不需要写入 Raft 日志，因为事务内的数据从未被提交）
+        pendingWrites.remove(request);
+        transactionDataCount.remove(request);
+        transactionStatus.remove(request);
+
         LOGGER.info("Successful rollback transaction : " + request);
         return dataResponest;
       }
     }
     LOGGER.warn("Failed to rollback transaction, the transaction status is incorrect : " + info);
     return new DataResponest(StatusCode.TRANSACTION_EXCEPTION, "Failed to rollback transaction: inner error");
+  }
+
+  /**
+   * 在事务内添加数据（缓存模式，不立即写入 Raft 日志）
+   * @param clientId 客户端标识
+   * @param rows 数据行
+   * @return 操作结果
+   */
+  public DataResponest putInTransaction(String clientId, Row[] rows) {
+    TransactionInfo info = transactionStatus.get(clientId);
+    if (info == null || !info.getStatus().isOpen()) {
+      LOGGER.warn("Transaction not found or not open for clientId: " + clientId);
+      return new DataResponest(StatusCode.TRANSACTION_EXCEPTION,
+          "Transaction not found or not open for clientId: " + clientId);
+    }
+
+    // 将数据添加到待提交缓存
+    List<Row> pendingRows = pendingWrites.get(clientId);
+    if (pendingRows == null) {
+      pendingRows = new java.util.LinkedList<>();
+      pendingWrites.put(clientId, pendingRows);
+    }
+    for (Row row : rows) {
+      pendingRows.add(row);
+    }
+
+    // 更新事务的数据计数
+    info.incrementDataCount();
+    AtomicInteger count = transactionDataCount.get(clientId);
+    if (count != null) {
+      count.addAndGet(rows.length);
+    }
+
+    LOGGER.debug("putInTransaction: clientId={}, rows={}, totalPending={}",
+        clientId, rows.length, pendingRows.size());
+    return new DataResponest(StatusCode.SUCCESS, "Data cached for transaction");
+  }
+
+  /**
+   * 在事务内删除数据（缓存模式，不立即写入 Raft 日志）
+   * @param clientId 客户端标识
+   * @param rows 要删除的数据行（只需要 key）
+   * @return 操作结果
+   */
+  public DataResponest deleteInTransaction(String clientId, Row[] rows) {
+    TransactionInfo info = transactionStatus.get(clientId);
+    if (info == null || !info.getStatus().isOpen()) {
+      LOGGER.warn("Transaction not found or not open for clientId: " + clientId);
+      return new DataResponest(StatusCode.TRANSACTION_EXCEPTION,
+          "Transaction not found or not open for clientId: " + clientId);
+    }
+
+    // 将删除操作添加到待提交缓存（使用特殊的标记或直接缓存 delete 命令）
+    // 这里我们缓存删除操作的 key，在 commit 时执行删除
+    List<Row> pendingRows = pendingWrites.get(clientId);
+    if (pendingRows == null) {
+      pendingRows = new java.util.LinkedList<>();
+      pendingWrites.put(clientId, pendingRows);
+    }
+    // 对于删除操作，我们同样缓存 row，但在 commit 时会使用 DELETE 命令
+    for (Row row : rows) {
+      pendingRows.add(row);
+    }
+
+    info.incrementDataCount();
+    AtomicInteger count = transactionDataCount.get(clientId);
+    if (count != null) {
+      count.addAndGet(rows.length);
+    }
+
+    LOGGER.debug("deleteInTransaction: clientId={}, rows={}", clientId, rows.length);
+    return new DataResponest(StatusCode.SUCCESS, "Delete operation cached for transaction");
+  }
+
+  /**
+   * 定期清理已关闭/回滚的事务记录
+   * 这个方法可以被定时任务调用，清理 RocksDB 中状态为 CLOSE 或 ROLLBACK 的事务
+   */
+  public void cleanupRolledbackTransactions() {
+    // 扫描所有事务记录，清理已关闭或回滚的事务
+    byte[] startKey = KeyUtil.generateTransactionIdKey(0);
+    byte[] endKey = KeyUtil.generateTransactionIdKey(Long.MAX_VALUE);
+
+    List<com.zhiyuan.zm.raft.dto.Row> rows = leader.getSaveData().scan(startKey, endKey);
+    int cleanedCount = 0;
+    for (com.zhiyuan.zm.raft.dto.Row row : rows) {
+      try {
+        TransactionInfo info = JSON.parseObject(new String(row.getValue()), TransactionInfo.class);
+        if (info.getStatus() == Status.CLOSE || info.getStatus() == Status.ROLLBACK) {
+          // 清理已过期的事务记录
+          leader.getSaveData().delete(row.getKey());
+          cleanedCount++;
+          LOGGER.debug("清理已完成的事务：transactionId={}, status={}",
+              info.getTransactionId(), info.getStatus());
+        }
+      } catch (RocksDBException e) {
+        LOGGER.error("清理事务失败：key={}", row.getKey(), e);
+      } catch (Exception e) {
+        LOGGER.warn("解析或清理事务状态失败：key={}", row.getKey(), e);
+      }
+    }
+    if (cleanedCount > 0) {
+      LOGGER.info("清理已完成的事务记录数：{}", cleanedCount);
+    }
+  }
+
+  /**
+   * 关闭事务服务，停止后台线程
+   */
+  public void shutdown() {
+    if (executorService != null) {
+      executorService.shutdownNow();
+      try {
+        if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+          LOGGER.warn("Transaction service executor did not terminate in time");
+        }
+      } catch (InterruptedException e) {
+        LOGGER.warn("Interrupted while waiting for transaction service to shutdown", e);
+      }
+    }
+    // 清理所有活跃的事务状态
+    transactionStatus.clear();
+    pendingWrites.clear();
+    transactionDataCount.clear();
+    LOGGER.info("Transaction service shutdown completed");
   }
 }

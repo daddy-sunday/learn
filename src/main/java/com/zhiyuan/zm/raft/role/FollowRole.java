@@ -170,6 +170,66 @@ public class FollowRole extends BaseRole implements Role {
             raftStatus.getAppliedIndex())));
   }
 
+  // ==================== 事务相关方法（重定向到 Leader） ====================
+
+  @Override
+  public DataResponest opentransaction(String request) {
+    return redirectIfNecessary(() -> InternalRpcClient.openTransaction(raftStatus.getLeaderAddress(), request));
+  }
+
+  @Override
+  public DataResponest commitTransaction(String request) {
+    return redirectIfNecessary(() -> InternalRpcClient.commitTransaction(raftStatus.getLeaderAddress(), request));
+  }
+
+  @Override
+  public DataResponest rollbackTransaction(String request) {
+    return redirectIfNecessary(() -> InternalRpcClient.rollbackTransaction(raftStatus.getLeaderAddress(), request));
+  }
+
+  @Override
+  public DataResponest putInTransaction(String request) {
+    return redirectIfNecessary(() -> InternalRpcClient.putInTransaction(raftStatus.getLeaderAddress(), request));
+  }
+
+  @Override
+  public DataResponest getInTransaction(String request) {
+    return redirectIfNecessary(() -> InternalRpcClient.getInTransaction(raftStatus.getLeaderAddress(), request));
+  }
+
+  @Override
+  public DataResponest deleteInTransaction(String request) {
+    return redirectIfNecessary(() -> InternalRpcClient.deleteInTransaction(raftStatus.getLeaderAddress(), request));
+  }
+
+  /**
+   * 如果有 leader 地址则返回重定向响应，否则返回错误
+   */
+  private DataResponest redirectIfNecessary(RedirectAction action) {
+    if (!inService()) {
+      return new DataResponest(StatusCode.NON_SEVICE,
+          "服务正在初始化，请换一个节点或者等以后儿重试，状态：" + raftStatus.getServiceStatus());
+    }
+    String leaderAddress = raftStatus.getLeaderAddress();
+    if (StringUtils.isEmpty(leaderAddress)) {
+      return new DataResponest(StatusCode.SLEEP, "当前服务刚启动，还没有收到 leader 消息，请等待一会重试");
+    }
+    try {
+      return action.execute();
+    } catch (Exception e) {
+      LOG.error("重定向到 leader 执行事务操作失败：" + e.getMessage(), e);
+      return new DataResponest(StatusCode.SYSTEMEXCEPTION, "重定向到 leader 执行事务操作失败：" + e.getMessage());
+    }
+  }
+
+  /**
+   * 函数式接口，用于执行重定向操作
+   */
+  @FunctionalInterface
+  private interface RedirectAction {
+    DataResponest execute() throws Exception;
+  }
+
   //
   @Override
   public DataResponest leaderMove(LeaderMoveDto leaderMoveDto) {

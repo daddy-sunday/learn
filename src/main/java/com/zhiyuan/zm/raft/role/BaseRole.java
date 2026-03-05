@@ -378,6 +378,16 @@ public abstract class BaseRole implements Role {
   }
 
   @Override
+  public DataResponest putInTransaction(String request) {
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+  @Override
+  public DataResponest deleteInTransaction(String request) {
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+  @Override
   public DataResponest configurationChange(ConfigurationChangeDto configurationChangeDto) {
     return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
@@ -394,5 +404,9 @@ public abstract class BaseRole implements Role {
 
   public SaveData getSaveData() {
     return saveData;
+  }
+
+  public RaftStatus getRaftStatus() {
+    return raftStatus;
   }
 }

@@ -20,4 +20,5 @@
 当前的代码经过了简单的小数据量测试，还没有写测试用例
 
 
-
+* chrom浏览器启动命令：
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="D:\data\chrom-data"

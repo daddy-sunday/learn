@@ -44,7 +44,7 @@ public class GlobalConfig {
   /**
    *检查追日志的任务时间间隔(毫秒)
    */
- private long chaseAfterLogTaskInterval = 30000;
+ private long chaseAfterLogTaskInterval = 300;
 
   /**
    * 发送日志超时时间(毫秒)
