@@ -745,4 +745,39 @@ public class LeaderRole extends BaseRole implements Role {
     userWorkthread.setDaemon(true);
     userWorkthread.setName("use-work");
   }
+
+  /**
+   * 获取日志索引（用于监控）
+   */
+  public long getLogIndex() {
+    return logIndex;
+  }
+
+  /**
+   * 获取事务服务（用于监控）
+   */
+  public TransactionService getTransactionService() {
+    return transactionService;
+  }
+
+  /**
+   * 获取 MVCC 事务服务（用于监控）
+   */
+  public MVCCTransactionService getMvccTransactionService() {
+    return mvccTransactionService;
+  }
+
+  /**
+   * 获取同步日志队列（用于监控）
+   */
+  public BlockingQueue<TaskMaterial> getSynLogQueue() {
+    return synLogQueue;
+  }
+
+  /**
+   * 获取 SaveData 引用（用于监控）
+   */
+  public SaveData getSaveData() {
+    return saveData;
+  }
 }

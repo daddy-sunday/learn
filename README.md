@@ -21,4 +21,4 @@
 
 
 * chrom浏览器启动命令：
-"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="D:\data\chrom-data"
+"C:\Program Files\Google\Chrome\1Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="D:\data\chrom-data"

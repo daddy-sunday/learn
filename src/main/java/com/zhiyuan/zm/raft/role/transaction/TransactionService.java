@@ -625,4 +625,59 @@ public class TransactionService {
     transactionDataCount.clear();
     LOGGER.info("Transaction service shutdown completed");
   }
+
+  /**
+   * 获取活跃事务数量
+   */
+  public int getActiveTransactionCount() {
+    return transactionStatus.size();
+  }
+
+  /**
+   * 获取已分配的事务 ID
+   */
+  public long getAllocatedTransactionId() {
+    return allocatedTransactionId;
+  }
+
+  /**
+   * 获取最大事务 ID
+   */
+  public long getMaxTransactionId() {
+    return maxTransactionId.get();
+  }
+
+  /**
+   * 获取事务状态分布
+   */
+  public Map<String, Integer> getTransactionDistribution() {
+    Map<String, Integer> distribution = new java.util.HashMap<>();
+    distribution.put("OPEN", 0);
+    distribution.put("CLOSE", 0);
+    distribution.put("ROLLBACK", 0);
+
+    // 扫描持久化存储中的事务状态
+    byte[] startKey = KeyUtil.generateTransactionIdKey(0);
+    byte[] endKey = KeyUtil.generateTransactionIdKey(Long.MAX_VALUE);
+
+    List<com.zhiyuan.zm.raft.dto.Row> rows = leader.getSaveData().scan(startKey, endKey);
+    for (com.zhiyuan.zm.raft.dto.Row row : rows) {
+      try {
+        TransactionInfo info = JSON.parseObject(new String(row.getValue()), TransactionInfo.class);
+        String statusKey = info.getStatus().name();
+        distribution.put(statusKey, distribution.getOrDefault(statusKey, 0) + 1);
+      } catch (Exception e) {
+        LOGGER.debug("解析事务状态失败：key={}", row.getKey(), e);
+      }
+    }
+
+    return distribution;
+  }
+
+  /**
+   * 获取活跃的事务 Map
+   */
+  public Map<String, TransactionInfo> getActiveTransactions() {
+    return new ConcurrentHashMap<>(transactionStatus);
+  }
 }

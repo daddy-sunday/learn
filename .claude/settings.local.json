@@ -3,7 +3,20 @@
     "allow": [
       "Bash(mvn compile:*)",
       "Bash(mvn test-compile:*)",
-      "Bash(mvn clean:*)"
+      "Bash(mvn clean:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "WebFetch(domain:)",
+      "Bash(rm -rf /d/tmp/raft/log/LOCK /d/tmp/raft/log2/LOCK /d/tmp/raft/log3/LOCK /d/tmp/raft/data/LOCK /d/tmp/raft/data2/LOCK /d/tmp/raft/data3/LOCK)",
+      "Bash(rm -rf /d/tmp/raft/log/*LOCK*)",
+      "Read(//d/tmp/raft/log//**)",
+      "Bash(kill:*)",
+      "Bash(xargs -r kill -9)",
+      "Bash(taskkill:*)",
+      "Bash(mvn test:*)",
+      "Bash(rm -f /d/tmp/raft/log/LOCK)",
+      "Bash(handle:*)",
+      "Bash(start:*)"
     ]
   }
 }

@@ -11,7 +11,7 @@ public class GlobalConfig {
  private String dataPath = "D:\\tmp\\raft\\data";
 
   /**
-   * follow检查心跳间隔
+   * follow 检查心跳间隔
    */
  private long checkTimeoutInterval = 20000;
 
@@ -27,42 +27,51 @@ public class GlobalConfig {
  private int sendHeartbeatInterval = 10000;
 
   /**
-   * 保存log日志到rocksdb的间隔(毫秒)
+   * 保存 log 日志到 rocksdb 的间隔 (毫秒)
    */
  private long saveLogTaskInterval = 50;
 
   /**
-   *master节点同步log日志到follower节点的时间间隔(毫秒)
+   *master 节点同步 log 日志到 follower 节点的时间间隔 (毫秒)
    */
  private long synLogTaskInterval = 50;
 
   /**
-   *所有节点应用log日志时间间隔(毫秒)
+   * 所有节点应用 log 日志时间间隔 (毫秒)
    */
  private long applyLogTaskInterval = 50;
 
   /**
-   *检查追日志的任务时间间隔(毫秒)
+   * 检查追日志的任务时间间隔 (毫秒)
    */
  private long chaseAfterLogTaskInterval = 300;
 
   /**
-   * 发送日志超时时间(毫秒)
+   * 发送日志超时时间 (毫秒)
    */
  private int  sendHeartbeatTimeout = 10000;
 
   /**
-   * 无服务等待检查时间间隔(毫秒)
+   * 无服务等待检查时间间隔 (毫秒)
    */
  private int waitTimeInterval = 100;
 
   /**
-   * 无服务等待检查次数 ，noServiceWaitTime * noServiceTimeout = 无服务等待时间
+   * 无服务等待检查次数，noServiceWaitTime * noServiceTimeout = 无服务等待时间
    */
  private int waitCount = 100;
 
+  // ==================== 监控服务配置 ====================
 
+  /**
+   * 是否启用 Web UI 监控服务（默认开启）
+   */
+  private boolean monitorEnabled = true;
 
+  /**
+   * 监控服务端口
+   */
+  private int monitorPort = 8080;
 
   public int getSendHeartbeatTimeout() {
     return sendHeartbeatTimeout;
@@ -188,9 +197,26 @@ public class GlobalConfig {
     this.port = port;
   }
 
+  // ==================== 监控服务配置 - getter/setter ====================
+
+  public boolean isMonitorEnabled() {
+    return monitorEnabled;
+  }
+
+  public void setMonitorEnabled(boolean monitorEnabled) {
+    this.monitorEnabled = monitorEnabled;
+  }
+
+  public int getMonitorPort() {
+    return monitorPort;
+  }
+
+  public void setMonitorPort(int monitorPort) {
+    this.monitorPort = monitorPort;
+  }
+
   @Override
-  public String
-  toString() {
+  public String toString() {
     return "GlobalConfig{" +
         "logPath='" + logPath + '\'' +
         ", dataPath='" + dataPath + '\'' +
@@ -198,6 +224,8 @@ public class GlobalConfig {
         ", otherNode='" + otherNode + '\'' +
         ", currentNode='" + currentNode + '\'' +
         ", sendHeartbeatInterval=" + sendHeartbeatInterval +
+        ", monitorEnabled=" + monitorEnabled +
+        ", monitorPort=" + monitorPort +
         '}';
   }
 }

@@ -158,4 +158,25 @@ public class RoleService {
     roleStatus.setNodeStatus(RoleStatus.SHUTDOWN);
     LOG.info("RoleService shutdown completed");
   }
+
+  /**
+   * 获取当前角色状态（用于监控）
+   */
+  public int getCurrentRoleStatus() {
+    return roleStatus.getNodeStatus();
+  }
+
+  /**
+   * 获取当前角色引用（用于监控）
+   */
+  public Role getCurrentRole() {
+    return currentRole;
+  }
+
+  /**
+   * 获取 LeaderRole 引用（用于监控）
+   */
+  public LeaderRole getLeaderRole() {
+    return (LeaderRole) leaderRole;
+  }
 }

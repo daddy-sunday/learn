@@ -84,6 +84,8 @@ public class RaftClusterTest {
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002");
     globalConfig.setPort(20000 + index);
     globalConfig.setCurrentNode(address);
+    // 设置监控端口，避免与其他节点冲突（节点 0:8080, 节点 1:8081, 节点 2:8082）
+    globalConfig.setMonitorPort(8080 + index);
 
     RaftService raftService = new RaftService();
     services.add(raftService);
@@ -101,7 +103,7 @@ public class RaftClusterTest {
     startThread.setDaemon(false);
     startThread.start();
 
-    System.out.println("已启动节点：" + address + " (端口：" + (20000 + index) + ")");
+    System.out.println("已启动节点：" + address + " (端口：" + (20000 + index) + ", 监控端口：" + (8080 + index) + ")");
     Thread.sleep(500); // 每个节点启动间隔
   }
 

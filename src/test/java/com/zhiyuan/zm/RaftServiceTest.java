@@ -56,6 +56,8 @@ public class RaftServiceTest {
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002");
     globalConfig.setPort(20000);
     globalConfig.setCurrentNode("localhost:20000");
+    // 设置监控端口，避免与其他节点冲突
+    globalConfig.setMonitorPort(8080);
     RaftService raftService = new RaftService();
     services.add(raftService);
     raftService.start(globalConfig);
@@ -73,6 +75,8 @@ public class RaftServiceTest {
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002");
     globalConfig.setPort(20001);
     globalConfig.setCurrentNode("localhost:20001");
+    // 设置监控端口，避免与其他节点冲突
+    globalConfig.setMonitorPort(8081);
     RaftService raftService = new RaftService();
     services.add(raftService);
     raftService.start(globalConfig);
@@ -90,6 +94,8 @@ public class RaftServiceTest {
     globalConfig.setOtherNode("localhost:20000,localhost:20001,localhost:20002");
     globalConfig.setPort(20002);
     globalConfig.setCurrentNode("localhost:20002");
+    // 设置监控端口，避免与其他节点冲突
+    globalConfig.setMonitorPort(8082);
     RaftService raftService = new RaftService();
     services.add(raftService);
     raftService.start(globalConfig);

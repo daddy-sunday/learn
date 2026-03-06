@@ -90,6 +90,19 @@
       <version>5.6.3</version>
     </dependency>
 
+    <!-- NanoHTTPD - 轻量级 HTTP 服务器 -->
+    <dependency>
+      <groupId>org.nanohttpd</groupId>
+      <artifactId>nanohttpd</artifactId>
+      <version>2.3.1</version>
+    </dependency>
+
+    <!-- NanoHTTPD WebSocket 支持（可选，用于实时推送） -->
+    <dependency>
+      <groupId>org.nanohttpd</groupId>
+      <artifactId>nanohttpd-websocket</artifactId>
+      <version>2.3.1</version>
+    </dependency>
 
   </dependencies>
 

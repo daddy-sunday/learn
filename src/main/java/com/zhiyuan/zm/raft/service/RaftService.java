@@ -8,6 +8,8 @@ import com.zhiyuan.zm.extend.UserWork;
 import com.zhiyuan.zm.raft.dto.LogEntries;
 import com.zhiyuan.zm.raft.dto.TaskMaterial;
 import com.zhiyuan.zm.raft.exception.RaftFatalException;
+import com.zhiyuan.zm.raft.monitor.MonitorServer;
+import com.zhiyuan.zm.raft.monitor.MonitorService;
 import com.zhiyuan.zm.raft.persistence.DefaultSaveDataImpl;
 import com.zhiyuan.zm.raft.persistence.DefaultSaveLogImpl;
 import com.zhiyuan.zm.raft.persistence.SaveData;
@@ -43,6 +45,8 @@ public class RaftService {
   private RoleService roleService;
   private SaveLog saveLog;
   private SaveData saveData;
+  private MonitorService monitorService;
+  private MonitorServer monitorServer;
   private volatile boolean running = false;
 
   public void start(GlobalConfig conf) throws RocksDBException {
@@ -73,9 +77,65 @@ public class RaftService {
     server.start();
     applyLogTask.start();
     saveLogTask.start();
-    roleService.startWork();
+
+    // 启动监控服务（必须在 startWork 之前，因为 startWork 是阻塞的）
+    startMonitorService(conf, raftStatus, saveLogQueue, applyLogQueue);
+
+    // 启动角色服务（阻塞调用，在新线程中运行）
+    Thread roleThread = new Thread(roleService::startWork, "RoleService-" + conf.getCurrentNode());
+    roleThread.setDaemon(false);
+    roleThread.start();
+
     running = true;
     LOG.info("RaftService started successfully");
+
+    // 阻塞主线程，等待角色服务线程结束（服务关闭时）
+    try {
+      roleThread.join();
+    } catch (InterruptedException e) {
+      LOG.info("RaftService main thread interrupted");
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  /**
+   * 启动监控服务
+   */
+  private void startMonitorService(GlobalConfig conf, RaftStatus raftStatus,
+                                  BlockingQueue<TaskMaterial> saveLogQueue,
+                                  BlockingQueue<LogEntries[]> applyLogQueue) {
+    // 从 GlobalConfig 读取监控配置
+    boolean monitorEnabled = conf.isMonitorEnabled();
+    int monitorPort = conf.getMonitorPort();
+
+    if (!monitorEnabled) {
+      LOG.info("Monitor service is disabled by configuration");
+      return;
+    }
+
+    try {
+      // 获取 LeaderRole 的引用（用于监控）
+      BlockingQueue<TaskMaterial> synLogQueue = null;
+      if (roleService.getLeaderRole() != null) {
+        synLogQueue = roleService.getLeaderRole().getSynLogQueue();
+      }
+
+      // 创建监控服务
+      monitorService = new MonitorService(raftStatus, roleService, saveLog,
+          saveLogQueue, applyLogQueue, synLogQueue);
+
+      // 设置 LeaderRole 引用
+      if (roleService.getLeaderRole() != null) {
+        monitorService.setLeaderRole(roleService.getLeaderRole());
+      }
+
+      // 启动 HTTP 服务器
+      monitorServer = new MonitorServer(monitorPort, monitorService);
+      monitorServer.start();
+      LOG.info("Monitor server started on port {}", monitorPort);
+    } catch (Exception e) {
+      LOG.error("Failed to start monitor service", e);
+    }
   }
 
   /**
@@ -107,7 +167,13 @@ public class RaftService {
       server.stop();
     }
 
-    // 4. 关闭存储资源
+    // 4. 停止监控服务器
+    if (monitorServer != null) {
+      monitorServer.stop();
+      LOG.info("Monitor server stopped");
+    }
+
+    // 5. 关闭存储资源
     if (saveLog != null) {
       saveLog.close();
     }
