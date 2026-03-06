@@ -101,6 +101,12 @@ public class MVCCTransactionService {
      * @return 开启结果
      */
     public DataResponest openTransaction(String request) {
+        // 1. 检查请求参数
+        if (request == null || request.isEmpty()) {
+            LOGGER.error("MVCC: Invalid request (clientId is null or empty)");
+            return new DataResponest(StatusCode.SYSTEMEXCEPTION, "Invalid request: clientId is null or empty");
+        }
+
         try {
             // 1. 生成事务 ID
             long transactionId = generateTransactionId();

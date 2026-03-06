@@ -107,18 +107,34 @@ public class RoleService {
           return currentRole.leaderMove(JSON.parseObject(request.getMessage(), LeaderMoveDto.class));
         case MessageType.RAFT_INFO:
           return currentRole.getRaftInfo();
-        case MessageType.OPEN_TRANSACTION:
-          return currentRole.opentransaction(request.getClientId());
-        case MessageType.COMMIT_TRANSACTION:
-          return currentRole.commitTransaction(request.getClientId());
-        case MessageType.ROLLBACK_TRANSACTION:
-          return currentRole.rollbackTransaction(request.getClientId());
+        case MessageType.OPEN_TRANSACTION: {
+          // clientId 可能存储在 message 字段中
+          String clientId = request.getClientId();
+          if (clientId == null || clientId.isEmpty()) {
+            clientId = request.getMessage();
+          }
+          return currentRole.opentransaction(clientId);
+        }
+        case MessageType.COMMIT_TRANSACTION: {
+          String clientId = request.getClientId();
+          if (clientId == null || clientId.isEmpty()) {
+            clientId = request.getMessage();
+          }
+          return currentRole.commitTransaction(clientId);
+        }
+        case MessageType.ROLLBACK_TRANSACTION: {
+          String clientId = request.getClientId();
+          if (clientId == null || clientId.isEmpty()) {
+            clientId = request.getMessage();
+          }
+          return currentRole.rollbackTransaction(clientId);
+        }
         case MessageType.PUT_IN_TRANSACTION:
-          return currentRole.putInTransaction(request.getMessage());
+          return currentRole.putInTransaction(request.getClientId(), request.getMessage());
         case MessageType.GET_IN_TRANSACTION:
-          return currentRole.getInTransaction(request.getMessage());
+          return currentRole.getInTransaction(request.getClientId(), request.getMessage());
         case MessageType.DELETE_IN_TRANSACTION:
-          return currentRole.deleteInTransaction(request.getMessage());
+          return currentRole.deleteInTransaction(request.getClientId(), request.getMessage());
         default:
       }
     }

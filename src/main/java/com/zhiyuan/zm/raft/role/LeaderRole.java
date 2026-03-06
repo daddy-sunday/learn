@@ -152,14 +152,71 @@ public class LeaderRole extends BaseRole implements Role {
       mvccTransactionService = new MVCCTransactionService(this);
       // MVCC 版本垃圾回收器（每 1 分钟执行一次）
       mvccGarbageCollector = new MVCCGarbageCollector(saveData, mvccTransactionService, raftStatus.getGroupId(), 60000);
+      // 启动 MVCC 垃圾回收器
+      mvccGarbageCollector.start();
       if (userWorkthread != null) {
         userWorkthread.start();
       }
+      // Leader 选举成功后，回滚所有 OPEN 状态的事务（处理部分写入风险）
+      rollbackOpenTransactions();
     } catch (Exception e) {
       LOG.error("Failed to leader init", e);
       return false;
     }
     return true;
+  }
+
+  /**
+   * 回滚所有 OPEN 状态的事务
+   * Leader 选举成功后调用，清理"悬空"事务
+   *
+   * 背景：MVCC 事务提交过程中，如果节点宕机可能导致部分写入风险：
+   * 1. 数据已写入 Raft 日志但事务状态仍为 OPEN
+   * 2. 内存缓存丢失后无法清理已写入的数据
+   *
+   * 解决方案：Leader 切换后，原 Leader 上未提交的事务实际上已经失败，
+   * 新 Leader 启动时扫描所有事务状态，自动回滚 OPEN 状态的事务
+   */
+  private void rollbackOpenTransactions() throws RocksDBException {
+    LOG.info("开始回滚 OPEN 状态的事务...");
+
+    byte[] startKey = KeyUtil.generateTransactionIdKey(0);
+    byte[] endKey = KeyUtil.generateTransactionIdKey(Long.MAX_VALUE);
+
+    List<com.zhiyuan.zm.raft.dto.Row> rows = saveData.scan(startKey, endKey);
+    int rollbackCount = 0;
+
+    for (com.zhiyuan.zm.raft.dto.Row row : rows) {
+      try {
+        TransactionService.TransactionInfo info =
+            JSON.parseObject(new String(row.getValue()), TransactionService.TransactionInfo.class);
+
+        if (info.getStatus() == TransactionService.Status.OPEN) {
+          // 发现 OPEN 状态事务，执行回滚
+          LOG.info("回滚 OPEN 状态事务：transactionId={}", info.getTransactionId());
+
+          // 写入 ROLLBACK 状态记录
+          info.setStatus(TransactionService.Status.ROLLBACK);
+          byte[] valueBytes = JSON.toJSONBytes(info);
+          DataResponest dataResponest = setData(JSON.toJSONString(
+              new Command(DataOperationType.INSERT, new Row[]{
+                  new Row(KeyUtil.generateTransactionIdKey(info.getTransactionId()), valueBytes)
+              })
+          ));
+
+          if (dataResponest.isSuccess()) {
+            rollbackCount++;
+          } else {
+            LOG.warn("回滚事务失败：transactionId={}, error={}",
+                info.getTransactionId(), dataResponest.getMessage());
+          }
+        }
+      } catch (Exception e) {
+        LOG.warn("解析或回滚事务状态失败：key={}", row.getKey(), e);
+      }
+    }
+
+    LOG.info("完成 OPEN 状态事务回滚，共回滚 {} 个事务", rollbackCount);
   }
 
   class SentFirstLog implements Runnable {
@@ -223,9 +280,7 @@ public class LeaderRole extends BaseRole implements Role {
         synCommitIndex();
         raftStatus.setServiceStatus(ServiceStatus.IN_SERVICE);
         chaseAfterLogTask.start(chaseAfterLogTaskInterval);
-      // 启动 MVCC 垃圾回收器
-      mvccGarbageCollector.start();
-    } catch (InterruptedException | ExecutionException | RocksDBException e) {
+      } catch (InterruptedException | ExecutionException | RocksDBException e) {
         LOG.error("initlog error：" + e.getMessage());
         //todo  直接退出了?
         throw new RaftFatalException("initlog error: " + e.getMessage(), e, 100);
@@ -428,19 +483,23 @@ public class LeaderRole extends BaseRole implements Role {
 
   /**
    * 在事务内写入数据（MVCC 模式）
-   * @param request 请求数据（JSON 格式：{"clientId": "xxx", "key": "yyy", "value": "zzz"}）
+   * @param clientId 客户端标识（事务标识）
+   * @param message 请求数据（JSON 格式的 Command 对象）
    * @return 操作结果
    */
-  public DataResponest putInTransaction(String request) {
+  public DataResponest putInTransaction(String clientId, String message) {
     if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
       return new DataResponest(StatusCode.SLEEP,
           "服务正在初始化，请在等待一会重试，状态：" + raftStatus.getServiceStatus());
     }
     try {
-      com.alibaba.fastjson.JSONObject jsonObject = JSON.parseObject(request);
-      String clientId = jsonObject.getString("clientId");
-      String key = jsonObject.getString("key");
-      String value = jsonObject.getString("value");
+      Command command = JSON.parseObject(message, Command.class);
+      Row[] rows = command.getRows();
+      if (rows == null || rows.length == 0) {
+        return new DataResponest(StatusCode.SYSTEMEXCEPTION, "请求数据为空");
+      }
+      String key = new String(rows[0].getKey());
+      String value = new String(rows[0].getValue());
       return mvccTransactionService.putInTransaction(clientId, key.getBytes(), value.getBytes());
     } catch (Exception e) {
       LOG.error("putInTransaction parse request failed", e);
@@ -450,18 +509,18 @@ public class LeaderRole extends BaseRole implements Role {
 
   /**
    * 在事务内读取数据（MVCC 模式）
-   * @param request 请求数据（JSON 格式：{"clientId": "xxx", "key": "yyy"}）
+   * @param clientId 客户端标识（事务标识）
+   * @param message 请求数据（JSON 格式的 GetData 对象）
    * @return 操作结果
    */
-  public DataResponest getInTransaction(String request) {
+  public DataResponest getInTransaction(String clientId, String message) {
     if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
       return new DataResponest(StatusCode.SLEEP,
           "服务正在初始化，请在等待一会重试，状态：" + raftStatus.getServiceStatus());
     }
     try {
-      com.alibaba.fastjson.JSONObject jsonObject = JSON.parseObject(request);
-      String clientId = jsonObject.getString("clientId");
-      String key = jsonObject.getString("key");
+      GetData getData = JSON.parseObject(message, GetData.class);
+      String key = getData.getKey();
       return mvccTransactionService.getInTransaction(clientId, key.getBytes());
     } catch (Exception e) {
       LOG.error("getInTransaction parse request failed", e);
@@ -471,18 +530,18 @@ public class LeaderRole extends BaseRole implements Role {
 
   /**
    * 在事务内删除数据（MVCC 模式）
-   * @param request 请求数据（JSON 格式：{"clientId": "xxx", "key": "yyy"}）
+   * @param clientId 客户端标识（事务标识）
+   * @param message 请求数据（JSON 格式的 GetData 对象）
    * @return 操作结果
    */
-  public DataResponest deleteInTransaction(String request) {
+  public DataResponest deleteInTransaction(String clientId, String message) {
     if (raftStatus.getServiceStatus() != ServiceStatus.IN_SERVICE) {
       return new DataResponest(StatusCode.SLEEP,
           "服务正在初始化，请在等待一会重试，状态：" + raftStatus.getServiceStatus());
     }
     try {
-      com.alibaba.fastjson.JSONObject jsonObject = JSON.parseObject(request);
-      String clientId = jsonObject.getString("clientId");
-      String key = jsonObject.getString("key");
+      GetData getData = JSON.parseObject(message, GetData.class);
+      String key = getData.getKey();
       return mvccTransactionService.deleteInTransaction(clientId, key.getBytes());
     } catch (Exception e) {
       LOG.error("deleteInTransaction parse request failed", e);

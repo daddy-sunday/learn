@@ -101,7 +101,7 @@ public class ZMClient {
    * @return 开启结果，成功时 data 字段包含事务 ID
    */
   public DataResponest openTransaction(String clientId) throws RemotingException, InterruptedException {
-    DataRequest request = new DataRequest(MessageType.OPEN_TRANSACTION, clientId);
+    DataRequest request = new DataRequest(MessageType.OPEN_TRANSACTION, clientId, clientId);
     return dataRequest(url, request, timeOut);
   }
 
@@ -111,7 +111,7 @@ public class ZMClient {
    * @return 提交结果
    */
   public DataResponest commitTransaction(String clientId) throws RemotingException, InterruptedException {
-    DataRequest request = new DataRequest(MessageType.COMMIT_TRANSACTION, clientId);
+    DataRequest request = new DataRequest(MessageType.COMMIT_TRANSACTION, clientId, clientId);
     return dataRequest(url, request, timeOut);
   }
 
@@ -121,7 +121,7 @@ public class ZMClient {
    * @return 回滚结果
    */
   public DataResponest rollbackTransaction(String clientId) throws RemotingException, InterruptedException {
-    DataRequest request = new DataRequest(MessageType.ROLLBACK_TRANSACTION, clientId);
+    DataRequest request = new DataRequest(MessageType.ROLLBACK_TRANSACTION, clientId, clientId);
     return dataRequest(url, request, timeOut);
   }
 
@@ -136,7 +136,7 @@ public class ZMClient {
       throws RemotingException, InterruptedException {
     String request = JSON.toJSONString(new Command(DataOperationType.MVCC_PUT,
         new Row[]{new Row(key.getBytes(), value.getBytes())}));
-    DataRequest dataRequest = new DataRequest(MessageType.PUT_IN_TRANSACTION, request);
+    DataRequest dataRequest = new DataRequest(MessageType.PUT_IN_TRANSACTION, clientId, request);
     return dataRequest(url, dataRequest, timeOut);
   }
 
@@ -149,7 +149,7 @@ public class ZMClient {
   public DataResponest getInTransaction(String clientId, String key)
       throws RemotingException, InterruptedException {
     String request = JSON.toJSONString(new GetData(key, clientId));
-    DataRequest dataRequest = new DataRequest(MessageType.GET_IN_TRANSACTION, request);
+    DataRequest dataRequest = new DataRequest(MessageType.GET_IN_TRANSACTION, clientId, request);
     return dataRequest(url, dataRequest, timeOut);
   }
 
@@ -162,7 +162,7 @@ public class ZMClient {
   public DataResponest deleteInTransaction(String clientId, String key)
       throws RemotingException, InterruptedException {
     String request = JSON.toJSONString(new GetData(key, clientId));
-    DataRequest dataRequest = new DataRequest(MessageType.DELETE_IN_TRANSACTION, request);
+    DataRequest dataRequest = new DataRequest(MessageType.DELETE_IN_TRANSACTION, clientId, request);
     return dataRequest(url, dataRequest, timeOut);
   }
 

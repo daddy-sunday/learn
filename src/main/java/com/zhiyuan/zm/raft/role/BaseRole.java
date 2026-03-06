@@ -17,6 +17,7 @@ import com.zhiyuan.zm.raft.dto.DataResponest;
 import com.zhiyuan.zm.raft.dto.GetData;
 import com.zhiyuan.zm.raft.dto.LeaderMoveDto;
 import com.zhiyuan.zm.raft.dto.LogEntries;
+import com.zhiyuan.zm.raft.dto.MVCCVersion;
 import com.zhiyuan.zm.raft.dto.RaftRpcResponest;
 import com.zhiyuan.zm.raft.dto.TaskMaterial;
 import com.zhiyuan.zm.raft.dto.VoteRequest;
@@ -128,8 +129,24 @@ public abstract class BaseRole implements Role {
 
   DataResponest getDataCommon(GetData request) {
     try {
-      byte[] value = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
-      return new DataResponest(StatusCode.SUCCESS, value == null ? null : new String(value));
+      // 首先尝试从普通键值对存储中读取
+      byte[] plainValue = saveData.getValue(ByteUtil.concatBytes(datakeyprefix, request.getKey().getBytes()));
+      if (plainValue != null) {
+        return new DataResponest(StatusCode.SUCCESS, new String(plainValue));
+      }
+
+      // 如果普通存储中没有数据，尝试从 MVCC 版本中读取最新已提交的数据
+      try {
+        MVCCVersion latestVersion = saveData.getMVCCByVersion(raftStatus.getGroupId(), request.getKey().getBytes(), Long.MAX_VALUE);
+        if (latestVersion != null && latestVersion.isCommitted()) {
+          byte[] value = latestVersion.getValue();
+          return new DataResponest(StatusCode.SUCCESS, value == null ? null : new String(value));
+        }
+      } catch (Exception e) {
+        LOG.debug("从 MVCC 版本读取数据失败：" + e.getMessage());
+      }
+
+      return new DataResponest(StatusCode.SUCCESS, null);
     } catch (RocksDBException e) {
       LOG.error("查询数据失败：" + e.getMessage(), e);
       return new DataResponest(StatusCode.SYSTEMEXCEPTION, "服务内部错误，请查看服务器日志");
@@ -378,12 +395,17 @@ public abstract class BaseRole implements Role {
   }
 
   @Override
-  public DataResponest putInTransaction(String request) {
+  public DataResponest putInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 
   @Override
-  public DataResponest deleteInTransaction(String request) {
+  public DataResponest getInTransaction(String clientId, String message) {
+    return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
+  }
+
+  @Override
+  public DataResponest deleteInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.RAFT_UNABLE_SERVER, "当前节点状态不支持该操作");
   }
 

@@ -78,17 +78,17 @@ public class LearnerRole extends BaseRole{
   }
 
   @Override
-  public DataResponest putInTransaction(String request) {
+  public DataResponest putInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
   }
 
   @Override
-  public DataResponest getInTransaction(String request) {
+  public DataResponest getInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
   }
 
   @Override
-  public DataResponest deleteInTransaction(String request) {
+  public DataResponest deleteInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.NON_SEVICE, "Learner 角色不支持事务操作");
   }
 

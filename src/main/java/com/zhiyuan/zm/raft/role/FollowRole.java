@@ -188,18 +188,18 @@ public class FollowRole extends BaseRole implements Role {
   }
 
   @Override
-  public DataResponest putInTransaction(String request) {
-    return redirectIfNecessary(() -> InternalRpcClient.putInTransaction(raftStatus.getLeaderAddress(), request));
+  public DataResponest putInTransaction(String clientId, String message) {
+    return redirectIfNecessary(() -> InternalRpcClient.putInTransaction(raftStatus.getLeaderAddress(), clientId, message));
   }
 
   @Override
-  public DataResponest getInTransaction(String request) {
-    return redirectIfNecessary(() -> InternalRpcClient.getInTransaction(raftStatus.getLeaderAddress(), request));
+  public DataResponest getInTransaction(String clientId, String message) {
+    return redirectIfNecessary(() -> InternalRpcClient.getInTransaction(raftStatus.getLeaderAddress(), clientId, message));
   }
 
   @Override
-  public DataResponest deleteInTransaction(String request) {
-    return redirectIfNecessary(() -> InternalRpcClient.deleteInTransaction(raftStatus.getLeaderAddress(), request));
+  public DataResponest deleteInTransaction(String clientId, String message) {
+    return redirectIfNecessary(() -> InternalRpcClient.deleteInTransaction(raftStatus.getLeaderAddress(), clientId, message));
   }
 
   /**

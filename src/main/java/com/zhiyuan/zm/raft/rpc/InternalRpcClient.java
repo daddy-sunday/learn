@@ -61,31 +61,31 @@ public class InternalRpcClient {
 
   public static DataResponest openTransaction(String url, String clientId)
       throws RemotingException, InterruptedException {
-    return dataRequest(url, new DataRequest(MessageType.OPEN_TRANSACTION, clientId), defaultTimeout);
+    return dataRequest(url, new DataRequest(MessageType.OPEN_TRANSACTION, clientId, clientId), defaultTimeout);
   }
 
   public static DataResponest commitTransaction(String url, String clientId)
       throws RemotingException, InterruptedException {
-    return dataRequest(url, new DataRequest(MessageType.COMMIT_TRANSACTION, clientId), defaultTimeout);
+    return dataRequest(url, new DataRequest(MessageType.COMMIT_TRANSACTION, clientId, clientId), defaultTimeout);
   }
 
   public static DataResponest rollbackTransaction(String url, String clientId)
       throws RemotingException, InterruptedException {
-    return dataRequest(url, new DataRequest(MessageType.ROLLBACK_TRANSACTION, clientId), defaultTimeout);
+    return dataRequest(url, new DataRequest(MessageType.ROLLBACK_TRANSACTION, clientId, clientId), defaultTimeout);
   }
 
-  public static DataResponest putInTransaction(String url, String request)
+  public static DataResponest putInTransaction(String url, String clientId, String message)
       throws RemotingException, InterruptedException {
-    return dataRequest(url, new DataRequest(MessageType.PUT_IN_TRANSACTION, request), defaultTimeout);
+    return dataRequest(url, new DataRequest(MessageType.PUT_IN_TRANSACTION, clientId, message), defaultTimeout);
   }
 
-  public static DataResponest getInTransaction(String url, String request)
+  public static DataResponest getInTransaction(String url, String clientId, String message)
       throws RemotingException, InterruptedException {
-    return dataRequest(url, new DataRequest(MessageType.GET_IN_TRANSACTION, request), defaultTimeout);
+    return dataRequest(url, new DataRequest(MessageType.GET_IN_TRANSACTION, clientId, message), defaultTimeout);
   }
 
-  public static DataResponest deleteInTransaction(String url, String request)
+  public static DataResponest deleteInTransaction(String url, String clientId, String message)
       throws RemotingException, InterruptedException {
-    return dataRequest(url, new DataRequest(MessageType.DELETE_IN_TRANSACTION, request), defaultTimeout);
+    return dataRequest(url, new DataRequest(MessageType.DELETE_IN_TRANSACTION, clientId, message), defaultTimeout);
   }
 }

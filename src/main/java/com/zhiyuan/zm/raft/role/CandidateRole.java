@@ -180,17 +180,17 @@ public class CandidateRole extends BaseRole implements Role {
   }
 
   @Override
-  public DataResponest putInTransaction(String request) {
+  public DataResponest putInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
   }
 
   @Override
-  public DataResponest getInTransaction(String request) {
+  public DataResponest getInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
   }
 
   @Override
-  public DataResponest deleteInTransaction(String request) {
+  public DataResponest deleteInTransaction(String clientId, String message) {
     return new DataResponest(StatusCode.SLEEP, "当前服务处于选举状态，不能提供服务，请等待一会重试");
   }
 }
