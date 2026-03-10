@@ -4,21 +4,22 @@ import java.nio.ByteBuffer;
 
 /**
  *@author zhouzhiyuan
+ * Byte utilities for Raft
  *@date 2021/10/25
  */
 public class ByteUtil {
 
   /**
    * todo 不想 把Bits里面的方法重写一边，先凑合用
-   * @param l
-   * @return
+   * @param l the long value
+   * @return byte array
    */
   public static byte[] longToBytes(long l) {
     ByteBuffer byteBuffer = ByteBuffer.allocate(8);
     byteBuffer.putLong(0, l);
     return byteBuffer.array();
   }
-  public static Long bytesToLong(byte[] bytes){
+  public static Long bytesToLong(byte[] bytes) {
     ByteBuffer byteBuffer = ByteBuffer.allocate(8);
     byteBuffer.put(bytes);
     byteBuffer.flip();
@@ -66,6 +67,22 @@ public class ByteUtil {
       k++;
     }
     return len1 - len2;
+  }
+
+  /**
+   * Convert byte array to hex string (for logging)
+   * @param bytes byte array
+   * @return hex string
+   */
+  public static String bytesToHex(byte[] bytes) {
+    if (bytes == null) {
+      return "null";
+    }
+    StringBuilder sb = new StringBuilder(bytes.length * 2);
+    for (byte b : bytes) {
+      sb.append(String.format("%02x", b));
+    }
+    return sb.toString();
   }
 
   public static byte[] concatBytes(byte[] p1, byte[] p2){

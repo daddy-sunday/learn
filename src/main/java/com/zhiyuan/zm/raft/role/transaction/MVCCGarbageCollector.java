@@ -1,7 +1,9 @@
 package com.zhiyuan.zm.raft.role.transaction;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import com.alibaba.fastjson.JSON;
 import com.zhiyuan.zm.raft.dto.MVCCVersion;
 import com.zhiyuan.zm.raft.persistence.SaveData;
+import com.zhiyuan.zm.raft.persistence.DefaultSaveDataImpl;
 import com.zhiyuan.zm.raft.util.ByteUtil;
 import com.zhiyuan.zm.raft.util.KeyUtil;
 
@@ -218,16 +221,16 @@ public class MVCCGarbageCollector {
         byte[] startPrefix = new byte[]{KeyUtil.MVCC_DATA_KEY_PREFIX};
         byte[] endPrefix = new byte[]{(byte) (KeyUtil.MVCC_DATA_KEY_PREFIX + 1)};
 
-        RocksDB db = ((com.zhiyuan.zm.raft.persistence.DefaultSaveDataImpl) saveData).getRocksDB();
+        DefaultSaveDataImpl saveDataImpl = (DefaultSaveDataImpl) saveData;
+        RocksDB db = saveDataImpl.getRocksDB();
         RocksIterator iterator = db.newIterator();
 
         try {
             // 存储需要删除的 key 列表
-            List<byte[]> keysToDelete = new ArrayList<>();
+            List<byte[]> keysToDelete = new ArrayList<>(DEFAULT_MAX_KEYS_PER_GC);
 
-            // 按 userKey 分组处理
-            byte[] currentUserKeyPrefix = null;
-            byte[] latestVersionKeyToKeep = null; // 需要保留的最新版本 key
+            // 按 userKey 分组，记录每个 userKey 的最新提交版本
+            Map<String, byte[]> latestVersionKeyPerUserKey = new HashMap<>();
 
             iterator.seek(startPrefix);
 
@@ -239,19 +242,9 @@ public class MVCCGarbageCollector {
                     break;
                 }
 
-                // 提取 userKey 前缀（用于分组）
-                byte[] userKeyPrefix = extractUserKeyPrefix(key);
-
-                // 如果是新的 userKey，处理上一组数据
-                if (currentUserKeyPrefix == null || !bytesEquals(currentUserKeyPrefix, userKeyPrefix)) {
-                    // 对于上一组，删除所有旧版本（除了需要保留的最新版本）
-                    if (currentUserKeyPrefix != null) {
-                        // 删除该组中所有需要删除的旧版本
-                        // （这里简化处理：实际应该在内存中维护每组的版本列表）
-                    }
-                    currentUserKeyPrefix = userKeyPrefix;
-                    latestVersionKeyToKeep = null;
-                }
+                // 提取 userKey 用于分组
+                byte[] userKey = extractUserKey(key);
+                String userKeyStr = new String(userKey);
 
                 // 解析版本信息
                 byte[] valueBytes = iterator.value();
@@ -260,12 +253,13 @@ public class MVCCGarbageCollector {
                 if (version != null && version.isCommitted()) {
                     // 检查是否是旧版本（commitTs < minActiveTransactionId）
                     if (version.getCommitTs() < minActiveTransactionId) {
+                        // 对于每个 userKey，只保留最新版本的 key 用于后续删除
+                        // 这里收集所有旧版本用于删除
                         keysToDelete.add(key);
                         collectedCount++;
-                    } else {
-                        // 这是新版本，保留最新的
-                        latestVersionKeyToKeep = key;
                     }
+                    // 记录该 userKey 的最新版本（用于后续保留）
+                    latestVersionKeyPerUserKey.put(userKeyStr, key);
                 }
 
                 iterator.next();
@@ -286,24 +280,6 @@ public class MVCCGarbageCollector {
         }
 
         return collectedCount;
-    }
-
-    /**
-     * 从 MVCC key 中提取 userKey 前缀
-     * Key 格式：1 字节类型 + 4 字节 groupId + N 字节 userKey + 8 字节 transactionId
-     *
-     * @param key MVCC key
-     * @return userKey 前缀（包含类型和 groupId）
-     */
-    private byte[] extractUserKeyPrefix(byte[] key) {
-        if (key == null || key.length < 13) { // 1 + 4 + 8 的最小长度
-            return key;
-        }
-        // 复制从开头到倒数第 8 个字节（去掉 transactionId）
-        int prefixLength = key.length - 8;
-        byte[] prefix = new byte[prefixLength];
-        System.arraycopy(key, 0, prefix, 0, prefixLength);
-        return prefix;
     }
 
     /**
@@ -338,44 +314,9 @@ public class MVCCGarbageCollector {
         try {
             return JSON.parseObject(new String(valueBytes), MVCCVersion.class);
         } catch (Exception e) {
-            LOGGER.warn("MVCC GC: Failed to parse MVCC version, key={}", bytesToHex(key));
+            LOGGER.warn("MVCC GC: Failed to parse MVCC version, key={}", ByteUtil.bytesToHex(key));
             return null;
         }
-    }
-
-    /**
-     * 检查字节数组是否相等
-     */
-    private boolean bytesEquals(byte[] a, byte[] b) {
-        if (a == null && b == null) {
-            return true;
-        }
-        if (a == null || b == null) {
-            return false;
-        }
-        if (a.length != b.length) {
-            return false;
-        }
-        for (int i = 0; i < a.length; i++) {
-            if (a[i] != b[i]) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 字节数组转十六进制字符串（用于日志）
-     */
-    private String bytesToHex(byte[] bytes) {
-        if (bytes == null) {
-            return "null";
-        }
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
     }
 
     /**

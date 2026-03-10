@@ -209,7 +209,7 @@ public class TransactionService {
       this.description = description;
     }
 
-    public static Status getStatusBycode(byte a) {
+    public static Status getStatusByCode(byte a) {
       for (Status value : Status.values()) {
         if (value.getCode() == a) {
           return value;
@@ -649,6 +649,7 @@ public class TransactionService {
 
   /**
    * 获取事务状态分布
+   * 注意：该方法需要扫描 RocksDB，频繁调用可能影响性能
    */
   public Map<String, Integer> getTransactionDistribution() {
     Map<String, Integer> distribution = new java.util.HashMap<>();

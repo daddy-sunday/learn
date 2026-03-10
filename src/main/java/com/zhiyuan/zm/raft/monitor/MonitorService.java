@@ -276,7 +276,7 @@ public class MonitorService {
             LogEntries maxLog = saveLog.getMaxLog(maxKey);
             return maxLog != null ? maxLog.getLogIndex() : KeyUtil.INIT_LOG_INDEX;
         } catch (Exception e) {
-            LOG.debug("获取最大日志索引失败", e);
+            LOG.warn("获取最大日志索引失败：{}", e.getMessage());
             return KeyUtil.INIT_LOG_INDEX;
         }
     }

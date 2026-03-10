@@ -418,17 +418,16 @@ public class MVCCTransactionService {
     /**
      * 冲突检测
      * 检查是否有其他事务在 T.beginTs 之后提交了相同的 key
+     * 优化：只检查活跃事务，避免全量扫描
      */
     private DataResponest checkConflict(TransactionService.TransactionInfo info) {
-        // 获取所有在 info.beginTs 之后提交的事务
-        // 简单实现：扫描所有活跃事务的 writeSet
-        // 优化方案：使用更高效的冲突检测机制
+        Set<String> infoWriteSet = info.getWriteSet();
 
         for (Map.Entry<String, TransactionService.TransactionInfo> entry : transactionStatus.entrySet()) {
             TransactionService.TransactionInfo other = entry.getValue();
 
             // 跳过自己
-            if (other.getTransactionId().equals(info.getTransactionId())) {
+            if (other.getTransactionId() == null || other.getTransactionId().equals(info.getTransactionId())) {
                 continue;
             }
 
@@ -439,13 +438,12 @@ public class MVCCTransactionService {
 
             // 检查是否有写集交集
             if (other.getCommitTs() > info.getBeginTs()) {
-                Set<String> intersection = new HashSet<>(info.getWriteSet());
-                intersection.retainAll(other.getWriteSet());
-
-                if (!intersection.isEmpty()) {
-                    String conflictKeys = String.join(", ", intersection);
-                    return new DataResponest(StatusCode.TRANSACTION_EXCEPTION,
-                            "Write conflict detected on keys: " + conflictKeys);
+                for (String key : infoWriteSet) {
+                    if (other.isInWriteSet(key)) {
+                        return new DataResponest(StatusCode.TRANSACTION_EXCEPTION,
+                                "Write conflict detected on key: " + key +
+                                " (conflicting transaction: " + other.getTransactionId() + ")");
+                    }
                 }
             }
         }

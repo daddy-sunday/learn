@@ -16,7 +16,10 @@
       "Bash(mvn test:*)",
       "Bash(rm -f /d/tmp/raft/log/LOCK)",
       "Bash(handle:*)",
-      "Bash(start:*)"
+      "Bash(start:*)",
+      "Bash(cd \"D:\\\\project\\\\learn\" && sed -i 's/\\\\r$//' src/main/java/com/zhiyuan/zm/raft/util/ByteUtil.java)",
+      "Bash(cd \"D:\\\\project\\\\learn\" && sed -i 's/todo 不想 把 Bits 里面的方法重写一边，先凑合用/Convert long to byte array/' src/main/java/com/zhiyuan/zm/raft/util/ByteUtil.java && sed -i 's/@param l$/@param l the long value/' src/main/java/com/zhiyuan/zm/raft/util/ByteUtil.java && sed -i 's/@return$/@return byte array/' src/main/java/com/zhiyuan/zm/raft/util/ByteUtil.java)",
+      "Bash(cd \"D:\\\\project\\\\learn\" && sed -i 's/@author zhouzhiyuan/@author zhouzhiyuan\\\\n * Byte utilities for Raft/' src/main/java/com/zhiyuan/zm/raft/util/ByteUtil.java)"
     ]
   }
 }
