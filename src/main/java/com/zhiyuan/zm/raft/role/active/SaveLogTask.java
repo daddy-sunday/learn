@@ -10,6 +10,7 @@ import com.zhiyuan.zm.conf.GlobalConfig;
 import com.zhiyuan.zm.raft.constant.ServiceStatus;
 import com.zhiyuan.zm.raft.dto.LogEntries;
 import com.zhiyuan.zm.raft.dto.TaskMaterial;
+import com.zhiyuan.zm.raft.exception.RaftFatalException;
 import com.zhiyuan.zm.raft.persistence.SaveLog;
 import com.zhiyuan.zm.raft.service.RaftStatus;
 import com.zhiyuan.zm.raft.util.KeyUtil;
@@ -95,9 +96,8 @@ public class SaveLogTask {
         }
         saveLog.writBatch(writeBatch);
       } catch (RocksDBException e) {
-        LOG.error("写入data失败", e);
-        //todo 重试写入，失败后退出？
-        System.exit(-1);
+        LOG.error("写入 RocksDB 失败", e);
+        throw new RaftFatalException("SaveLogTask 写入 RocksDB 失败：" + e.getMessage(), e, 101);
       } catch (NoSuchElementException e) {
         LOG.warn("队列中没有数据了，可能是raft发生了角色切换");
         for (int i = 0; i < size; i++) {

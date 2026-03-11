@@ -17,8 +17,6 @@
   * 执行 test/java目录下的 SaveLogTest.findAll() 类中的方法，可以查询所有节点中rocksdb中的存储数据。
   * 执行 test/java目录下的 SaveLogTest.deleteAll() 类中的方法，可以清空所有节点中rocksdb的存储数据。
 
-当前的代码经过了简单的小数据量测试，还没有写测试用例
-
 
 * chrom浏览器启动命令：
 "C:\Program Files\Google\Chrome\1Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="D:\data\chrom-data"

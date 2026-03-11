@@ -3,7 +3,7 @@ package com.zhiyuan.zm.raft.service;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -64,9 +64,9 @@ public class RaftStatus {
    */
   private List<String> allMembers = new LinkedList<>();
 
-  private LinkedBlockingDeque<String> validMembers = new LinkedBlockingDeque<>();
+  private CopyOnWriteArraySet<String> validMembers = new CopyOnWriteArraySet<>();
 
-  private LinkedBlockingDeque<ChaseAfterLog> failedMembers = new LinkedBlockingDeque<>();
+  private CopyOnWriteArraySet<ChaseAfterLog> failedMembers = new CopyOnWriteArraySet<>();
 
   /**
    * 人员数量
@@ -155,11 +155,11 @@ public class RaftStatus {
     this.lastTimeTerm = lastTimeTerm;
   }
 
-  public LinkedBlockingDeque<ChaseAfterLog> getFailedMembers() {
+  public CopyOnWriteArraySet<ChaseAfterLog> getFailedMembers() {
     return failedMembers;
   }
 
-  public void setFailedMembers(LinkedBlockingDeque<ChaseAfterLog> failedMembers) {
+  public void setFailedMembers(CopyOnWriteArraySet<ChaseAfterLog> failedMembers) {
     this.failedMembers = failedMembers;
   }
 
@@ -265,11 +265,11 @@ public class RaftStatus {
     this.allMembers = allMembers;
   }
 
-  public LinkedBlockingDeque<String> getValidMembers() {
+  public CopyOnWriteArraySet<String> getValidMembers() {
     return validMembers;
   }
 
-  public void setValidMembers(LinkedBlockingDeque<String> validMembers) {
+  public void setValidMembers(CopyOnWriteArraySet<String> validMembers) {
     this.validMembers = validMembers;
   }
 

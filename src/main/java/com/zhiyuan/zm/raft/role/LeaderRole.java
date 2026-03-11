@@ -10,7 +10,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -123,20 +122,13 @@ public class LeaderRole extends BaseRole implements Role {
 
   boolean init() {
     try {
-      executorService = new ThreadPoolExecutor(raftStatus.getPersonelNum() * 2, raftStatus.getPersonelNum() * 3,
-          3600L, TimeUnit.MILLISECONDS,
-          new ArrayBlockingQueue<Runnable>(100),
+      executorService = new ThreadPoolExecutor(
+          raftStatus.getPersonnelNum(),
+          raftStatus.getPersonnelNum() + 2,
+          60L, TimeUnit.SECONDS,
+          new ArrayBlockingQueue<Runnable>(50),
           new ThreadFactoryBuilder().setDaemon(true).setNameFormat("leader").build(),
-          new RejectedExecutionHandler() {
-            @Override
-            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-              try {
-                executor.getQueue().put(r);
-              } catch (InterruptedException e) {
-                e.printStackTrace();
-              }
-            }
-          });
+          new ThreadPoolExecutor.CallerRunsPolicy());
       LogEntries maxLog = saveLog.getMaxLog(KeyUtil.generateLogKey(raftStatus.getGroupId(), Long.MAX_VALUE));
       logIndex = maxLog.getLogIndex();
       synLogQueue = new LinkedBlockingDeque<>(1000);
@@ -375,10 +367,7 @@ public class LeaderRole extends BaseRole implements Role {
     chaseAfterLogTask.stop();
     chaseAfterLogTask = null;
     //清空失败队列
-    LinkedBlockingDeque<ChaseAfterLog> failedMembers = raftStatus.getFailedMembers();
-    while (!failedMembers.isEmpty()) {
-      failedMembers.poll();
-    }
+    raftStatus.getFailedMembers().clear();
     waitQueueIsEmpty();
     clearAppliedQueue();
 
